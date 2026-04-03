@@ -61,20 +61,7 @@ export default function Sidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-6 pb-[calc(var(--safe-area-bottom)+1rem)]">
-          {!isCompact && (
-            <div className="hidden rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:block">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Workspace
-              </p>
-              <p className="mt-3 text-sm font-semibold text-slate-900">
-                {user.role === "admin"
-                  ? "Manage teams, stock, and warehouse activity."
-                  : "Review assigned stock and keep your usage records current."}
-              </p>
-            </div>
-          )}
-
-          <nav className="mt-8 space-y-2">
+          <nav className="space-y-2">
             {links.map((item) => {
               const active =
                 pathname === item.href || pathname.startsWith(`${item.href}/`);
