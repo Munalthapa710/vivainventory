@@ -2,7 +2,7 @@
 
 VivaInventory is a full-stack inventory management system for construction teams. Admins can manage warehouse stock, assign products to employees, review inventory activity, and publish announcements. Employees can track assigned products, record usage, export records, and use the app from mobile as an installable PWA.
 
-This repository is now configured for **real Vercel deployment** by using **external PostgreSQL** instead of local SQLite.
+This repository is configured for Vercel deployment with PostgreSQL.
 
 ## Stack
 
@@ -56,13 +56,13 @@ This repository is now configured for **real Vercel deployment** by using **exte
 
 ```text
 vivainventory/
-├── app/
-├── components/
-├── lib/
-├── public/
-├── middleware.js
-├── package.json
-└── README.md
+|-- app/
+|-- components/
+|-- lib/
+|-- public/
+|-- middleware.js
+|-- package.json
+`-- README.md
 ```
 
 ## Environment Variables
@@ -110,7 +110,7 @@ npm run seed
 This creates:
 
 - all required tables
-- the required admin and employee accounts
+- baseline admin and employee accounts
 - sample warehouse products
 - sample inventory activity
 - one sample announcement
@@ -141,15 +141,15 @@ npm run start
 
 ## Vercel Deployment
 
-VivaInventory is deployable on Vercel because it now uses an external PostgreSQL database instead of local disk storage.
+VivaInventory is deployable on Vercel because it uses an external PostgreSQL database instead of local disk storage.
 
 ### 1. Push this repository to GitHub
 
 The project is already prepared for Git-based Vercel deployment.
 
-### 2. Create a PostgreSQL database
+### 2. Create and connect a PostgreSQL database
 
-Use any hosted PostgreSQL provider. On Vercel, the current storage documentation points to managed database providers through the Vercel Marketplace, including providers such as Neon.
+On Vercel, the simplest path is to create Postgres through `Storage` and connect it to the project. The current Vercel storage docs point to Marketplace-backed providers such as Neon.
 
 ### 3. Import the project into Vercel
 
@@ -159,13 +159,18 @@ Use any hosted PostgreSQL provider. On Vercel, the current storage documentation
 
 ### 4. Add environment variables in Vercel
 
-Set these variables in Project Settings → Environment Variables:
+Set these values in `Project Settings -> Environment Variables`:
 
 - `NEXTAUTH_URL`
 - `NEXTAUTH_SECRET`
-- `DATABASE_URL`
+- `POSTGRES_URL` if it is injected automatically by Vercel Storage
+- `DATABASE_URL` only if you want to mirror the same connection string manually
 
-For production, `NEXTAUTH_URL` should be your deployed app URL.
+Production notes:
+
+- `NEXTAUTH_URL` must be your deployed app URL
+- Vercel Storage usually injects the Postgres variables automatically after the database is connected
+- do not keep placeholder values such as `YOUR_PASSWORD`
 
 ### 5. Deploy
 
@@ -173,10 +178,16 @@ Deploy from the `main` branch.
 
 ### 6. Seed the production database
 
-After the database variables are configured, run the seed script against the production database from a trusted environment:
+After the database variables are configured, run the seed script against the production database:
 
 ```bash
 npm run seed
+```
+
+Using the Vercel CLI is the safest production path because it uses the exact production environment variables from the project:
+
+```bash
+vercel env run -e production -- npm run seed
 ```
 
 ## Database Tables
@@ -223,7 +234,8 @@ If the installed mobile icon or shell does not update immediately, remove the ap
 
 - Registration is disabled; users are created by admins only.
 - The app uses email/password credentials through NextAuth.js.
-- The backend requires `DATABASE_URL` to be set before API routes or login flows can access the database.
+- The backend supports `DATABASE_URL` as well as Vercel-injected Postgres variables such as `POSTGRES_URL`.
+- The seed flow creates the baseline admin and employee accounts, and the auth bootstrap creates them automatically if the connected database is empty.
 - Local build artifacts, environment files, logs, and machine-specific folders are excluded from git.
 
 ## Sources
