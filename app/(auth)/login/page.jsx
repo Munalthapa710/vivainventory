@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { Building2, Eye, EyeOff, HardHat, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
+import AppSplashScreen from "@/components/AppSplashScreen";
 import BrandLogo from "@/components/BrandLogo";
 import PwaInstallButton from "@/components/PwaInstallButton";
 
@@ -63,11 +64,7 @@ export default function LoginPage() {
   }
 
   if (status === "loading") {
-    return (
-      <main className="grid min-h-screen place-items-center bg-slate-950">
-        <div className="skeleton h-12 w-40 rounded-full" />
-      </main>
-    );
+    return <AppSplashScreen subtitle="Checking your account" />;
   }
 
   return (
