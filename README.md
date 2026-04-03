@@ -59,6 +59,8 @@ After running the seed script:
 - Admin: `admin@vivainventory.com` / `admin123`
 - Employee: `employee@vivainventory.com` / `employee123`
 
+Running `npm run seed` again will upsert these two accounts and reset them back to the default credentials above.
+
 ## Project Structure
 
 ```text
