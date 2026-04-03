@@ -157,8 +157,8 @@ export default function LoginPage() {
               </p>
               <h1 className="mt-2 text-3xl font-bold">Sign in to continue</h1>
               <p className="mt-3 text-sm text-slate-500">
-                Use the seeded admin account or an employee account created by
-                the admin.
+                Use the credentials assigned to your account by your
+                administrator.
               </p>
               <div className="mt-5">
                 <PwaInstallButton variant="secondary" />
@@ -171,7 +171,7 @@ export default function LoginPage() {
                 <input
                   className="input"
                   type="email"
-                  placeholder="admin@vivainventory.com"
+                  placeholder="name@company.com"
                   value={form.email}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -217,22 +217,6 @@ export default function LoginPage() {
                 {loading ? "Signing in..." : "Sign In"}
               </button>
             </form>
-
-            <div className="mt-8 rounded-3xl bg-slate-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Seeded Credentials
-              </p>
-              <div className="mt-4 space-y-3 text-sm text-slate-600">
-                <div>
-                  <p className="font-semibold text-slate-800">Admin</p>
-                  <p>admin@vivainventory.com / admin123</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-800">Employee</p>
-                  <p>employee@vivainventory.com / employee123</p>
-                </div>
-              </div>
-            </div>
           </div>
         </section>
       </div>

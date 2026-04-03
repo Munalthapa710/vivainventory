@@ -52,15 +52,6 @@ This repository is now configured for **real Vercel deployment** by using **exte
 - Read announcements and employee communication board
 - Update profile settings
 
-## Default Seeded Accounts
-
-After running the seed script:
-
-- Admin: `admin@vivainventory.com` / `admin123`
-- Employee: `employee@vivainventory.com` / `employee123`
-
-Running `npm run seed` again will upsert these two accounts and reset them back to the default credentials above.
-
 ## Project Structure
 
 ```text
@@ -119,8 +110,7 @@ npm run seed
 This creates:
 
 - all required tables
-- the default admin account
-- one sample employee
+- the required admin and employee accounts
 - sample warehouse products
 - sample inventory activity
 - one sample announcement
