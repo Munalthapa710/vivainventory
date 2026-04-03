@@ -1,29 +1,31 @@
 import { NextResponse } from "next/server";
-import db, { ensureDatabase, serializeProduct } from "@/lib/db";
+import {
+  query,
+  queryOne,
+  queryRows,
+  serializeProduct
+} from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-ensureDatabase();
+async function getAllProducts() {
+  const products = await queryRows(`
+    SELECT
+      id,
+      name,
+      category,
+      total_quantity,
+      unit,
+      description,
+      low_stock_threshold,
+      created_at
+    FROM products
+    ORDER BY created_at DESC
+  `);
 
-function getAllProducts() {
-  return db
-    .prepare(`
-      SELECT
-        id,
-        name,
-        category,
-        total_quantity,
-        unit,
-        description,
-        low_stock_threshold,
-        created_at
-      FROM products
-      ORDER BY created_at DESC
-    `)
-    .all()
-    .map(serializeProduct);
+  return products.map(serializeProduct);
 }
 
 export async function GET(request) {
@@ -35,7 +37,7 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const view = searchParams.get("view");
-  const products = getAllProducts();
+  const products = await getAllProducts();
 
   if (view === "dashboard") {
     const categoryMap = products.reduce((accumulator, product) => {
@@ -97,9 +99,10 @@ export async function POST(request) {
       );
     }
 
-    const existing = db
-      .prepare("SELECT id FROM products WHERE name = ?")
-      .get(name);
+    const existing = await queryOne(
+      "SELECT id FROM products WHERE name = $1",
+      [name]
+    );
 
     if (existing) {
       return NextResponse.json(
@@ -108,8 +111,8 @@ export async function POST(request) {
       );
     }
 
-    const result = db
-      .prepare(`
+    const product = await queryOne(
+      `
         INSERT INTO products (
           name,
           category,
@@ -119,13 +122,8 @@ export async function POST(request) {
           low_stock_threshold,
           created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `)
-      .run(name, category, totalQuantity, unit, description, lowStockThreshold);
-
-    const product = db
-      .prepare(`
-        SELECT
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        RETURNING
           id,
           name,
           category,
@@ -134,10 +132,9 @@ export async function POST(request) {
           description,
           low_stock_threshold,
           created_at
-        FROM products
-        WHERE id = ?
-      `)
-      .get(result.lastInsertRowid);
+      `,
+      [name, category, totalQuantity, unit, description, lowStockThreshold]
+    );
 
     return NextResponse.json(
       {
@@ -164,7 +161,10 @@ export async function PATCH(request) {
   try {
     const body = await request.json();
     const id = Number(body.id);
-    const product = db.prepare("SELECT id FROM products WHERE id = ?").get(id);
+    const product = await queryOne(
+      "SELECT id FROM products WHERE id = $1",
+      [id]
+    );
 
     if (!product) {
       return NextResponse.json(
@@ -199,9 +199,10 @@ export async function PATCH(request) {
       );
     }
 
-    const nameConflict = db
-      .prepare("SELECT id FROM products WHERE name = ? AND id != ?")
-      .get(name, id);
+    const nameConflict = await queryOne(
+      "SELECT id FROM products WHERE name = $1 AND id != $2",
+      [name, id]
+    );
 
     if (nameConflict) {
       return NextResponse.json(
@@ -210,29 +211,18 @@ export async function PATCH(request) {
       );
     }
 
-    db.prepare(`
-      UPDATE products
-      SET
-        name = ?,
-        category = ?,
-        total_quantity = ?,
-        unit = ?,
-        description = ?,
-        low_stock_threshold = ?
-      WHERE id = ?
-    `).run(
-      name,
-      category,
-      totalQuantity,
-      unit,
-      description,
-      lowStockThreshold,
-      id
-    );
-
-    const updatedProduct = db
-      .prepare(`
-        SELECT
+    const updatedProduct = await queryOne(
+      `
+        UPDATE products
+        SET
+          name = $1,
+          category = $2,
+          total_quantity = $3,
+          unit = $4,
+          description = $5,
+          low_stock_threshold = $6
+        WHERE id = $7
+        RETURNING
           id,
           name,
           category,
@@ -241,10 +231,17 @@ export async function PATCH(request) {
           description,
           low_stock_threshold,
           created_at
-        FROM products
-        WHERE id = ?
-      `)
-      .get(id);
+      `,
+      [
+        name,
+        category,
+        totalQuantity,
+        unit,
+        description,
+        lowStockThreshold,
+        id
+      ]
+    );
 
     return NextResponse.json({
       message: "Product updated successfully.",
@@ -269,7 +266,10 @@ export async function DELETE(request) {
     const body = await request.json();
     const id = Number(body.id);
 
-    const product = db.prepare("SELECT id FROM products WHERE id = ?").get(id);
+    const product = await queryOne(
+      "SELECT id FROM products WHERE id = $1",
+      [id]
+    );
 
     if (!product) {
       return NextResponse.json(
@@ -278,9 +278,10 @@ export async function DELETE(request) {
       );
     }
 
-    const assignments = db
-      .prepare("SELECT COUNT(*) AS count FROM user_inventory WHERE product_id = ?")
-      .get(id);
+    const assignments = await queryOne(
+      "SELECT COUNT(*) AS count FROM user_inventory WHERE product_id = $1",
+      [id]
+    );
 
     if (Number(assignments.count || 0) > 0) {
       return NextResponse.json(
@@ -289,7 +290,7 @@ export async function DELETE(request) {
       );
     }
 
-    db.prepare("DELETE FROM products WHERE id = ?").run(id);
+    await query("DELETE FROM products WHERE id = $1", [id]);
 
     return NextResponse.json({
       message: "Product deleted successfully."

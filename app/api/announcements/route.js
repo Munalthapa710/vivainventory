@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import db, { ensureDatabase, serializeAnnouncement } from "@/lib/db";
+import { queryOne, queryRows, serializeAnnouncement } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-ensureDatabase();
 
 export async function GET(request) {
   const { response } = await requireSession();
@@ -16,25 +14,24 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const limitValue = Number(searchParams.get("limit"));
-  const limit =
-    Number.isInteger(limitValue) && limitValue > 0 ? `LIMIT ${limitValue}` : "";
+  const hasLimit = Number.isInteger(limitValue) && limitValue > 0;
+  const queryText = `
+    SELECT
+      a.id,
+      a.title,
+      a.message,
+      a.created_by,
+      a.created_at,
+      u.full_name AS created_by_name
+    FROM announcements a
+    LEFT JOIN users u ON u.id = a.created_by
+    ORDER BY a.created_at DESC
+    ${hasLimit ? "LIMIT $1" : ""}
+  `;
 
-  const announcements = db
-    .prepare(`
-      SELECT
-        a.id,
-        a.title,
-        a.message,
-        a.created_by,
-        a.created_at,
-        u.full_name AS created_by_name
-      FROM announcements a
-      LEFT JOIN users u ON u.id = a.created_by
-      ORDER BY a.created_at DESC
-      ${limit}
-    `)
-    .all()
-    .map(serializeAnnouncement);
+  const announcements = (
+    await queryRows(queryText, hasLimit ? [limitValue] : [])
+  ).map(serializeAnnouncement);
 
   return NextResponse.json({ announcements });
 }
@@ -58,32 +55,19 @@ export async function POST(request) {
       );
     }
 
-    const result = db
-      .prepare(`
+    const announcement = await queryOne(
+      `
         INSERT INTO announcements (
           title,
           message,
           created_by,
           created_at
         )
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      `)
-      .run(title, message, Number(session.user.id));
-
-    const announcement = db
-      .prepare(`
-        SELECT
-          a.id,
-          a.title,
-          a.message,
-          a.created_by,
-          a.created_at,
-          u.full_name AS created_by_name
-        FROM announcements a
-        LEFT JOIN users u ON u.id = a.created_by
-        WHERE a.id = ?
-      `)
-      .get(result.lastInsertRowid);
+        VALUES ($1, $2, $3, NOW())
+        RETURNING id, title, message, created_by, created_at
+      `,
+      [title, message, Number(session.user.id)]
+    );
 
     return NextResponse.json(
       {

@@ -1,12 +1,10 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import db, { ensureDatabase, sanitizeUser } from "@/lib/db";
+import { queryOne, queryRows, sanitizeUser } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-ensureDatabase();
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -19,17 +17,16 @@ export async function GET(request) {
       return response;
     }
 
-    const employees = db
-      .prepare(`
+    const employees = (
+      await queryRows(`
         SELECT id, full_name, email, role, is_active, created_at
         FROM users
-        WHERE role = 'employee' AND is_active = 1
-        ORDER BY full_name COLLATE NOCASE ASC
+        WHERE role = 'employee' AND is_active = TRUE
+        ORDER BY LOWER(full_name) ASC
       `)
-      .all()
-      .map(sanitizeUser);
+    ).map(sanitizeUser);
 
-    const inventoryRows = db.prepare(`
+    const inventoryRows = await queryRows(`
       SELECT
         ui.user_id,
         ui.product_id,
@@ -41,9 +38,9 @@ export async function GET(request) {
       FROM user_inventory ui
       INNER JOIN users u ON u.id = ui.user_id
       INNER JOIN products p ON p.id = ui.product_id
-      WHERE u.role = 'employee' AND u.is_active = 1
-      ORDER BY u.full_name COLLATE NOCASE ASC, p.name COLLATE NOCASE ASC
-    `).all();
+      WHERE u.role = 'employee' AND u.is_active = TRUE
+      ORDER BY LOWER(u.full_name) ASC, LOWER(p.name) ASC
+    `);
 
     const employeesWithInventory = employees.map((employee) => ({
       ...employee,
@@ -71,16 +68,14 @@ export async function GET(request) {
   }
 
   if (view === "dashboard") {
-    const summary = db
-      .prepare(`
-        SELECT
-          COUNT(*) AS total_users,
-          SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active_users,
-          SUM(CASE WHEN role = 'employee' THEN 1 ELSE 0 END) AS total_employees,
-          SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) AS total_admins
-        FROM users
-      `)
-      .get();
+    const summary = await queryOne(`
+      SELECT
+        COUNT(*) AS total_users,
+        SUM(CASE WHEN is_active = TRUE THEN 1 ELSE 0 END) AS active_users,
+        SUM(CASE WHEN role = 'employee' THEN 1 ELSE 0 END) AS total_employees,
+        SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) AS total_admins
+      FROM users
+    `);
 
     return NextResponse.json({
       totalUsers: Number(summary.total_users || 0),
@@ -90,14 +85,13 @@ export async function GET(request) {
     });
   }
 
-  const users = db
-    .prepare(`
+  const users = (
+    await queryRows(`
       SELECT id, full_name, email, role, is_active, created_at
       FROM users
       ORDER BY created_at DESC
     `)
-    .all()
-    .map(sanitizeUser);
+  ).map(sanitizeUser);
 
   return NextResponse.json({ users });
 }
@@ -130,9 +124,10 @@ export async function POST(request) {
       );
     }
 
-    const existing = db
-      .prepare("SELECT id FROM users WHERE email = ?")
-      .get(email);
+    const existing = await queryOne(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
 
     if (existing) {
       return NextResponse.json(
@@ -143,8 +138,8 @@ export async function POST(request) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const result = db
-      .prepare(`
+    const createdUser = await queryOne(
+      `
         INSERT INTO users (
           full_name,
           email,
@@ -153,17 +148,11 @@ export async function POST(request) {
           is_active,
           created_at
         )
-        VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
-      `)
-      .run(fullName, email, passwordHash, role);
-
-    const createdUser = db
-      .prepare(`
-        SELECT id, full_name, email, role, is_active, created_at
-        FROM users
-        WHERE id = ?
-      `)
-      .get(result.lastInsertRowid);
+        VALUES ($1, $2, $3, $4, TRUE, NOW())
+        RETURNING id, full_name, email, role, is_active, created_at
+      `,
+      [fullName, email, passwordHash, role]
+    );
 
     return NextResponse.json(
       {

@@ -1,41 +1,50 @@
 import { NextResponse } from "next/server";
-import db, { ensureDatabase, logRecord, serializeRecord } from "@/lib/db";
+import {
+  logRecord,
+  queryOne,
+  queryRows,
+  serializeRecord,
+  withTransaction
+} from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-ensureDatabase();
-
 function buildRecordsQuery({ userId, limit, productId, startDate, endDate }) {
   const conditions = [];
-  const parameters = {};
+  const parameters = [];
 
   if (userId) {
-    conditions.push("r.user_id = @userId");
-    parameters.userId = userId;
+    parameters.push(userId);
+    conditions.push(`r.user_id = $${parameters.length}`);
   }
 
   if (productId) {
-    conditions.push("r.product_id = @productId");
-    parameters.productId = productId;
+    parameters.push(productId);
+    conditions.push(`r.product_id = $${parameters.length}`);
   }
 
   if (startDate) {
-    conditions.push("date(r.created_at) >= date(@startDate)");
-    parameters.startDate = startDate;
+    parameters.push(startDate);
+    conditions.push(`DATE(r.created_at) >= $${parameters.length}::date`);
   }
 
   if (endDate) {
-    conditions.push("date(r.created_at) <= date(@endDate)");
-    parameters.endDate = endDate;
+    parameters.push(endDate);
+    conditions.push(`DATE(r.created_at) <= $${parameters.length}::date`);
   }
 
   const whereClause = conditions.length
     ? `WHERE ${conditions.join(" AND ")}`
     : "";
 
-  const limitClause = Number.isInteger(limit) && limit > 0 ? `LIMIT ${limit}` : "";
+  let limitClause = "";
+
+  if (Number.isInteger(limit) && limit > 0) {
+    parameters.push(limit);
+    limitClause = `LIMIT $${parameters.length}`;
+  }
 
   const query = `
     SELECT
@@ -87,7 +96,7 @@ export async function GET(request) {
     endDate
   });
 
-  const records = db.prepare(query).all(parameters).map(serializeRecord);
+  const records = (await queryRows(query, parameters)).map(serializeRecord);
 
   return NextResponse.json({ records });
 }
@@ -113,13 +122,14 @@ export async function POST(request) {
       );
     }
 
-    const assignment = db
-      .prepare(`
+    const assignment = await queryOne(
+      `
         SELECT id, assigned_quantity, remaining_quantity
         FROM user_inventory
-        WHERE user_id = ? AND product_id = ?
-      `)
-      .get(userId, productId);
+        WHERE user_id = $1 AND product_id = $2
+      `,
+      [userId, productId]
+    );
 
     if (!assignment) {
       return NextResponse.json(
@@ -138,25 +148,29 @@ export async function POST(request) {
     const quantityBefore = Number(assignment.remaining_quantity);
     const quantityAfter = quantityBefore - quantity;
 
-    const useProduct = db.transaction(() => {
-      db.prepare(`
-        UPDATE user_inventory
-        SET remaining_quantity = ?
-        WHERE id = ?
-      `).run(quantityAfter, Number(assignment.id));
+    await withTransaction(async (client) => {
+      await client.query(
+        `
+          UPDATE user_inventory
+          SET remaining_quantity = $1
+          WHERE id = $2
+        `,
+        [quantityAfter, Number(assignment.id)]
+      );
 
-      logRecord({
-        userId,
-        productId,
-        actionType: "used",
-        quantityChanged: quantity,
-        quantityBefore,
-        quantityAfter,
-        notes
-      });
+      await logRecord(
+        {
+          userId,
+          productId,
+          actionType: "used",
+          quantityChanged: quantity,
+          quantityBefore,
+          quantityAfter,
+          notes
+        },
+        client
+      );
     });
-
-    useProduct();
 
     return NextResponse.json({
       message: "Product usage recorded successfully."

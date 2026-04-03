@@ -1,28 +1,32 @@
 import { NextResponse } from "next/server";
-import db, {
-  ensureDatabase,
+import {
   logRecord,
+  queryOne,
+  queryRows,
   sanitizeUser,
-  serializeInventoryItem
+  serializeInventoryItem,
+  withTransaction
 } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-ensureDatabase();
-
-function getEmployeeById(userId) {
-  return db.prepare(`
-    SELECT id, full_name, email, role, is_active, created_at
-    FROM users
-    WHERE id = ?
-  `).get(userId);
+function getEmployeeById(userId, client) {
+  return queryOne(
+    `
+      SELECT id, full_name, email, role, is_active, created_at
+      FROM users
+      WHERE id = $1
+    `,
+    [userId],
+    client
+  );
 }
 
-function getInventoryForUser(userId) {
-  return db
-    .prepare(`
+async function getInventoryForUser(userId, client) {
+  const rows = await queryRows(
+    `
       SELECT
         ui.id,
         ui.user_id,
@@ -37,11 +41,14 @@ function getInventoryForUser(userId) {
         p.low_stock_threshold
       FROM user_inventory ui
       INNER JOIN products p ON p.id = ui.product_id
-      WHERE ui.user_id = ?
-      ORDER BY p.name COLLATE NOCASE ASC
-    `)
-    .all(userId)
-    .map(serializeInventoryItem);
+      WHERE ui.user_id = $1
+      ORDER BY LOWER(p.name) ASC
+    `,
+    [userId],
+    client
+  );
+
+  return rows.map(serializeInventoryItem);
 }
 
 export async function GET(_request, { params }) {
@@ -52,7 +59,7 @@ export async function GET(_request, { params }) {
   }
 
   const userId = Number(params.userId);
-  const employee = getEmployeeById(userId);
+  const employee = await getEmployeeById(userId);
 
   if (!employee || employee.role !== "employee") {
     return NextResponse.json(
@@ -61,7 +68,7 @@ export async function GET(_request, { params }) {
     );
   }
 
-  const inventory = getInventoryForUser(userId);
+  const inventory = await getInventoryForUser(userId);
 
   return NextResponse.json({
     employee: sanitizeUser(employee),
@@ -85,7 +92,7 @@ export async function POST(request, { params }) {
 
   try {
     const userId = Number(params.userId);
-    const employee = getEmployeeById(userId);
+    const employee = await getEmployeeById(userId);
 
     if (!employee || employee.role !== "employee") {
       return NextResponse.json(
@@ -105,13 +112,14 @@ export async function POST(request, { params }) {
       );
     }
 
-    const product = db
-      .prepare(`
+    const product = await queryOne(
+      `
         SELECT id, name, total_quantity
         FROM products
-        WHERE id = ?
-      `)
-      .get(productId);
+        WHERE id = $1
+      `,
+      [productId]
+    );
 
     if (!product) {
       return NextResponse.json(
@@ -127,69 +135,84 @@ export async function POST(request, { params }) {
       );
     }
 
-    const assignProduct = db.transaction(() => {
-      const existing = db
-        .prepare(`
+    await withTransaction(async (client) => {
+      const existing = await queryOne(
+        `
           SELECT id, assigned_quantity, remaining_quantity
           FROM user_inventory
-          WHERE user_id = ? AND product_id = ?
-        `)
-        .get(userId, productId);
+          WHERE user_id = $1 AND product_id = $2
+        `,
+        [userId, productId],
+        client
+      );
 
       if (existing) {
         const updatedAssigned = Number(existing.assigned_quantity) + quantity;
         const updatedRemaining = Number(existing.remaining_quantity) + quantity;
 
-        db.prepare(`
-          UPDATE user_inventory
-          SET assigned_quantity = ?, remaining_quantity = ?
-          WHERE id = ?
-        `).run(updatedAssigned, updatedRemaining, Number(existing.id));
+        await client.query(
+          `
+            UPDATE user_inventory
+            SET assigned_quantity = $1, remaining_quantity = $2
+            WHERE id = $3
+          `,
+          [updatedAssigned, updatedRemaining, Number(existing.id)]
+        );
 
-        logRecord({
-          userId,
-          productId,
-          actionType: "assigned",
-          quantityChanged: quantity,
-          quantityBefore: Number(existing.remaining_quantity),
-          quantityAfter: updatedRemaining,
-          notes: body.notes || "Admin increased employee allocation."
-        });
+        await logRecord(
+          {
+            userId,
+            productId,
+            actionType: "assigned",
+            quantityChanged: quantity,
+            quantityBefore: Number(existing.remaining_quantity),
+            quantityAfter: updatedRemaining,
+            notes: body.notes || "Admin increased employee allocation."
+          },
+          client
+        );
       } else {
-        db.prepare(`
-          INSERT INTO user_inventory (
-            user_id,
-            product_id,
-            assigned_quantity,
-            remaining_quantity,
-            assigned_at
-          )
-          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `).run(userId, productId, quantity, quantity);
+        await client.query(
+          `
+            INSERT INTO user_inventory (
+              user_id,
+              product_id,
+              assigned_quantity,
+              remaining_quantity,
+              assigned_at
+            )
+            VALUES ($1, $2, $3, $4, NOW())
+          `,
+          [userId, productId, quantity, quantity]
+        );
 
-        logRecord({
-          userId,
-          productId,
-          actionType: "assigned",
-          quantityChanged: quantity,
-          quantityBefore: 0,
-          quantityAfter: quantity,
-          notes: body.notes || "Admin assigned warehouse stock."
-        });
+        await logRecord(
+          {
+            userId,
+            productId,
+            actionType: "assigned",
+            quantityChanged: quantity,
+            quantityBefore: 0,
+            quantityAfter: quantity,
+            notes: body.notes || "Admin assigned warehouse stock."
+          },
+          client
+        );
       }
 
-      db.prepare(`
-        UPDATE products
-        SET total_quantity = total_quantity - ?
-        WHERE id = ?
-      `).run(quantity, productId);
+      await client.query(
+        `
+          UPDATE products
+          SET total_quantity = total_quantity - $1
+          WHERE id = $2
+        `,
+        [quantity, productId]
+      );
     });
-
-    assignProduct();
 
     return NextResponse.json({
       message: "Product assigned successfully.",
-      products: getInventoryForUser(userId)
+      products: await getInventoryForUser(userId)
     });
   } catch (error) {
     return NextResponse.json(
@@ -208,7 +231,7 @@ export async function PATCH(request, { params }) {
 
   try {
     const userId = Number(params.userId);
-    const employee = getEmployeeById(userId);
+    const employee = await getEmployeeById(userId);
 
     if (!employee || employee.role !== "employee") {
       return NextResponse.json(
@@ -232,13 +255,14 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    const assignment = db
-      .prepare(`
+    const assignment = await queryOne(
+      `
         SELECT id, assigned_quantity, remaining_quantity
         FROM user_inventory
-        WHERE user_id = ? AND product_id = ?
-      `)
-      .get(userId, productId);
+        WHERE user_id = $1 AND product_id = $2
+      `,
+      [userId, productId]
+    );
 
     if (!assignment) {
       return NextResponse.json(
@@ -247,13 +271,14 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    const product = db
-      .prepare(`
+    const product = await queryOne(
+      `
         SELECT id, total_quantity
         FROM products
-        WHERE id = ?
-      `)
-      .get(productId);
+        WHERE id = $1
+      `,
+      [productId]
+    );
 
     const usedQuantity =
       Number(assignment.assigned_quantity) - Number(assignment.remaining_quantity);
@@ -279,40 +304,47 @@ export async function PATCH(request, { params }) {
 
     const newRemainingQuantity = newAssignedQuantity - usedQuantity;
 
-    const updateAssignment = db.transaction(() => {
-      db.prepare(`
-        UPDATE user_inventory
-        SET assigned_quantity = ?, remaining_quantity = ?
-        WHERE id = ?
-      `).run(newAssignedQuantity, newRemainingQuantity, Number(assignment.id));
+    await withTransaction(async (client) => {
+      await client.query(
+        `
+          UPDATE user_inventory
+          SET assigned_quantity = $1, remaining_quantity = $2
+          WHERE id = $3
+        `,
+        [newAssignedQuantity, newRemainingQuantity, Number(assignment.id)]
+      );
 
-      db.prepare(`
-        UPDATE products
-        SET total_quantity = total_quantity - ?
-        WHERE id = ?
-      `).run(delta, productId);
+      await client.query(
+        `
+          UPDATE products
+          SET total_quantity = total_quantity - $1
+          WHERE id = $2
+        `,
+        [delta, productId]
+      );
 
       if (delta !== 0) {
-        logRecord({
-          userId,
-          productId,
-          actionType: "adjusted",
-          quantityChanged: Math.abs(delta),
-          quantityBefore: Number(assignment.remaining_quantity),
-          quantityAfter: newRemainingQuantity,
-          notes:
-            delta > 0
-              ? "Admin increased employee allocation."
-              : "Admin reduced employee allocation."
-        });
+        await logRecord(
+          {
+            userId,
+            productId,
+            actionType: "adjusted",
+            quantityChanged: Math.abs(delta),
+            quantityBefore: Number(assignment.remaining_quantity),
+            quantityAfter: newRemainingQuantity,
+            notes:
+              delta > 0
+                ? "Admin increased employee allocation."
+                : "Admin reduced employee allocation."
+          },
+          client
+        );
       }
     });
 
-    updateAssignment();
-
     return NextResponse.json({
       message: "Assigned quantity updated successfully.",
-      products: getInventoryForUser(userId)
+      products: await getInventoryForUser(userId)
     });
   } catch (error) {
     return NextResponse.json(
@@ -331,7 +363,7 @@ export async function DELETE(request, { params }) {
 
   try {
     const userId = Number(params.userId);
-    const employee = getEmployeeById(userId);
+    const employee = await getEmployeeById(userId);
 
     if (!employee || employee.role !== "employee") {
       return NextResponse.json(
@@ -343,13 +375,14 @@ export async function DELETE(request, { params }) {
     const body = await request.json();
     const productId = Number(body.productId);
 
-    const assignment = db
-      .prepare(`
+    const assignment = await queryOne(
+      `
         SELECT id, remaining_quantity
         FROM user_inventory
-        WHERE user_id = ? AND product_id = ?
-      `)
-      .get(userId, productId);
+        WHERE user_id = $1 AND product_id = $2
+      `,
+      [userId, productId]
+    );
 
     if (!assignment) {
       return NextResponse.json(
@@ -358,35 +391,42 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    const removeAssignment = db.transaction(() => {
-      db.prepare(`
-        UPDATE products
-        SET total_quantity = total_quantity + ?
-        WHERE id = ?
-      `).run(Number(assignment.remaining_quantity), productId);
+    await withTransaction(async (client) => {
+      await client.query(
+        `
+          UPDATE products
+          SET total_quantity = total_quantity + $1
+          WHERE id = $2
+        `,
+        [Number(assignment.remaining_quantity), productId]
+      );
 
-      logRecord({
-        userId,
-        productId,
-        actionType: "removed",
-        quantityChanged: Number(assignment.remaining_quantity),
-        quantityBefore: Number(assignment.remaining_quantity),
-        quantityAfter: 0,
-        notes: "Admin removed this product from the employee."
-      });
+      await logRecord(
+        {
+          userId,
+          productId,
+          actionType: "removed",
+          quantityChanged: Number(assignment.remaining_quantity),
+          quantityBefore: Number(assignment.remaining_quantity),
+          quantityAfter: 0,
+          notes: "Admin removed this product from the employee."
+        },
+        client
+      );
 
-      db.prepare("DELETE FROM user_inventory WHERE id = ?").run(Number(assignment.id));
+      await client.query(
+        "DELETE FROM user_inventory WHERE id = $1",
+        [Number(assignment.id)]
+      );
     });
-
-    removeAssignment();
 
     return NextResponse.json({
       message: "Assigned product removed successfully.",
-      products: getInventoryForUser(userId)
+      products: await getInventoryForUser(userId)
     });
   } catch (error) {
     return NextResponse.json(
-      { message: error.message || "Unable to remove assigned product." },
+      { message: error.message || "Unable to remove product." },
       { status: 500 }
     );
   }

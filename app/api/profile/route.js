@@ -1,19 +1,20 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import db, { ensureDatabase, sanitizeUser } from "@/lib/db";
+import { query, queryOne, sanitizeUser } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-ensureDatabase();
-
 function getCurrentUser(userId) {
-  return db.prepare(`
-    SELECT id, full_name, email, password_hash, role, is_active, created_at
-    FROM users
-    WHERE id = ?
-  `).get(userId);
+  return queryOne(
+    `
+      SELECT id, full_name, email, password_hash, role, is_active, created_at
+      FROM users
+      WHERE id = $1
+    `,
+    [userId]
+  );
 }
 
 export async function GET() {
@@ -23,7 +24,7 @@ export async function GET() {
     return response;
   }
 
-  const user = getCurrentUser(Number(session.user.id));
+  const user = await getCurrentUser(Number(session.user.id));
 
   if (!user) {
     return NextResponse.json({ message: "User not found." }, { status: 404 });
@@ -43,7 +44,7 @@ export async function PATCH(request) {
 
   try {
     const userId = Number(session.user.id);
-    const user = getCurrentUser(userId);
+    const user = await getCurrentUser(userId);
 
     if (!user) {
       return NextResponse.json({ message: "User not found." }, { status: 404 });
@@ -65,8 +66,8 @@ export async function PATCH(request) {
         );
       }
 
-      updates.push("full_name = ?");
       values.push(fullName);
+      updates.push(`full_name = $${values.length}`);
     }
 
     if (newPassword) {
@@ -96,8 +97,8 @@ export async function PATCH(request) {
         );
       }
 
-      updates.push("password_hash = ?");
       values.push(await bcrypt.hash(newPassword, 10));
+      updates.push(`password_hash = $${values.length}`);
     }
 
     if (updates.length === 0) {
@@ -109,11 +110,12 @@ export async function PATCH(request) {
 
     values.push(userId);
 
-    db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(
-      ...values
+    await query(
+      `UPDATE users SET ${updates.join(", ")} WHERE id = $${values.length}`,
+      values
     );
 
-    const updatedUser = getCurrentUser(userId);
+    const updatedUser = await getCurrentUser(userId);
 
     return NextResponse.json({
       message: newPassword

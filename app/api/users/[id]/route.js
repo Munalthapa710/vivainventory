@@ -1,18 +1,26 @@
 import { NextResponse } from "next/server";
-import db, { ensureDatabase, sanitizeUser } from "@/lib/db";
+import {
+  query,
+  queryOne,
+  queryRows,
+  sanitizeUser,
+  withTransaction
+} from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-ensureDatabase();
-
-function getUserById(id) {
-  return db.prepare(`
-    SELECT id, full_name, email, role, is_active, created_at
-    FROM users
-    WHERE id = ?
-  `).get(id);
+async function getUserById(id, client) {
+  return queryOne(
+    `
+      SELECT id, full_name, email, role, is_active, created_at
+      FROM users
+      WHERE id = $1
+    `,
+    [id],
+    client
+  );
 }
 
 export async function GET(_request, { params }) {
@@ -23,21 +31,22 @@ export async function GET(_request, { params }) {
   }
 
   const userId = Number(params.id);
-  const user = getUserById(userId);
+  const user = await getUserById(userId);
 
   if (!user) {
     return NextResponse.json({ message: "User not found." }, { status: 404 });
   }
 
-  const summary = db
-    .prepare(`
+  const summary = await queryOne(
+    `
       SELECT
         COUNT(*) AS assigned_products,
         COALESCE(SUM(remaining_quantity), 0) AS remaining_units
       FROM user_inventory
-      WHERE user_id = ?
-    `)
-    .get(userId);
+      WHERE user_id = $1
+    `,
+    [userId]
+  );
 
   return NextResponse.json({
     user: sanitizeUser(user),
@@ -57,7 +66,7 @@ export async function PATCH(request, { params }) {
 
   try {
     const userId = Number(params.id);
-    const currentUser = getUserById(userId);
+    const currentUser = await getUserById(userId);
 
     if (!currentUser) {
       return NextResponse.json({ message: "User not found." }, { status: 404 });
@@ -77,8 +86,8 @@ export async function PATCH(request, { params }) {
         );
       }
 
-      updates.push("full_name = ?");
       values.push(fullName);
+      updates.push(`full_name = $${values.length}`);
     }
 
     if (typeof body.email === "string") {
@@ -91,9 +100,10 @@ export async function PATCH(request, { params }) {
         );
       }
 
-      const existing = db
-        .prepare("SELECT id FROM users WHERE email = ? AND id != ?")
-        .get(email, userId);
+      const existing = await queryOne(
+        "SELECT id FROM users WHERE email = $1 AND id != $2",
+        [email, userId]
+      );
 
       if (existing) {
         return NextResponse.json(
@@ -102,8 +112,8 @@ export async function PATCH(request, { params }) {
         );
       }
 
-      updates.push("email = ?");
       values.push(email);
+      updates.push(`email = $${values.length}`);
     }
 
     if (typeof body.role === "string") {
@@ -121,11 +131,13 @@ export async function PATCH(request, { params }) {
       }
 
       if (currentUser.role === "admin" && role !== "admin") {
-        const activeAdminCount = db
-          .prepare(
-            "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = 1"
-          )
-          .get();
+        const activeAdminCount = await queryOne(
+          `
+            SELECT COUNT(*) AS count
+            FROM users
+            WHERE role = 'admin' AND is_active = TRUE
+          `
+        );
 
         if (Number(activeAdminCount.count || 0) <= 1) {
           return NextResponse.json(
@@ -135,8 +147,8 @@ export async function PATCH(request, { params }) {
         }
       }
 
-      updates.push("role = ?");
       values.push(role);
+      updates.push(`role = $${values.length}`);
     }
 
     if (typeof body.is_active === "boolean") {
@@ -148,11 +160,13 @@ export async function PATCH(request, { params }) {
       }
 
       if (currentUser.role === "admin" && body.is_active === false) {
-        const activeAdminCount = db
-          .prepare(
-            "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = 1"
-          )
-          .get();
+        const activeAdminCount = await queryOne(
+          `
+            SELECT COUNT(*) AS count
+            FROM users
+            WHERE role = 'admin' AND is_active = TRUE
+          `
+        );
 
         if (Number(activeAdminCount.count || 0) <= 1) {
           return NextResponse.json(
@@ -162,8 +176,8 @@ export async function PATCH(request, { params }) {
         }
       }
 
-      updates.push("is_active = ?");
-      values.push(body.is_active ? 1 : 0);
+      values.push(body.is_active);
+      updates.push(`is_active = $${values.length}`);
     }
 
     if (updates.length === 0) {
@@ -175,11 +189,12 @@ export async function PATCH(request, { params }) {
 
     values.push(userId);
 
-    db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(
-      ...values
+    await query(
+      `UPDATE users SET ${updates.join(", ")} WHERE id = $${values.length}`,
+      values
     );
 
-    const updatedUser = getUserById(userId);
+    const updatedUser = await getUserById(userId);
 
     return NextResponse.json({
       message: "User updated successfully.",
@@ -202,7 +217,7 @@ export async function DELETE(_request, { params }) {
 
   try {
     const userId = Number(params.id);
-    const user = getUserById(userId);
+    const user = await getUserById(userId);
 
     if (!user) {
       return NextResponse.json({ message: "User not found." }, { status: 404 });
@@ -216,9 +231,9 @@ export async function DELETE(_request, { params }) {
     }
 
     if (user.role === "admin") {
-      const adminCount = db
-        .prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'")
-        .get();
+      const adminCount = await queryOne(
+        "SELECT COUNT(*) AS count FROM users WHERE role = 'admin'"
+      );
 
       if (Number(adminCount.count || 0) <= 1) {
         return NextResponse.json(
@@ -228,27 +243,30 @@ export async function DELETE(_request, { params }) {
       }
     }
 
-    const removeUser = db.transaction(() => {
-      const assignments = db
-        .prepare(`
+    await withTransaction(async (client) => {
+      const assignments = await queryRows(
+        `
           SELECT product_id, remaining_quantity
           FROM user_inventory
-          WHERE user_id = ?
-        `)
-        .all(userId);
+          WHERE user_id = $1
+        `,
+        [userId],
+        client
+      );
 
       for (const assignment of assignments) {
-        db.prepare(`
-          UPDATE products
-          SET total_quantity = total_quantity + ?
-          WHERE id = ?
-        `).run(Number(assignment.remaining_quantity), Number(assignment.product_id));
+        await client.query(
+          `
+            UPDATE products
+            SET total_quantity = total_quantity + $1
+            WHERE id = $2
+          `,
+          [Number(assignment.remaining_quantity), Number(assignment.product_id)]
+        );
       }
 
-      db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+      await client.query("DELETE FROM users WHERE id = $1", [userId]);
     });
-
-    removeUser();
 
     return NextResponse.json({
       message: "User deleted successfully."

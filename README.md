@@ -1,58 +1,60 @@
 # VivaInventory
 
-VivaInventory is a full-stack inventory management system for construction teams. It helps admins manage warehouse stock, assign products to employees, track usage, review records, and publish announcements from a single responsive web app.
+VivaInventory is a full-stack inventory management system for construction teams. Admins can manage warehouse stock, assign products to employees, review inventory activity, and publish announcements. Employees can track assigned products, record usage, export records, and use the app from mobile as an installable PWA.
 
-The project is built with Next.js 14 App Router, NextAuth.js credentials authentication, SQLite via `better-sqlite3`, Tailwind CSS, and a mobile-optimized PWA shell.
+This repository is now configured for **real Vercel deployment** by using **external PostgreSQL** instead of local SQLite.
 
-## Features
+## Stack
 
-- Role-based authentication with `admin` and `employee` accounts
-- Protected admin and employee dashboards
-- Warehouse product master list with low-stock indicators
-- Employee inventory assignment and quantity editing
-- Usage records with quantity before/after audit trail
-- Employee records filtering, Excel export, and print support
-- Admin announcements board visible to employees
-- Mobile-friendly layout with drawer navigation, bottom nav, safe-area support, and installable PWA behavior
-- SQLite seed script with sample users, products, records, and announcement
-
-## Tech Stack
-
-- Next.js 14
+- Next.js 14 App Router
 - React 18
-- NextAuth.js
-- SQLite + `better-sqlite3`
+- NextAuth.js credentials auth
+- PostgreSQL via `pg`
 - Tailwind CSS
-- `bcryptjs`
 - `react-hot-toast`
 - `recharts`
 - `xlsx`
 - `lucide-react`
 
+## Features
+
+- Role-based login for `admin` and `employee`
+- Protected admin and employee areas
+- Warehouse inventory management
+- Employee stock assignment and adjustment
+- Full usage audit trail with before/after quantities
+- Records filtering, Excel export, and print view
+- Admin announcements visible to employees
+- Mobile-optimized layout
+- PWA install support with offline fallback page
+- Vercel-compatible Postgres backend
+
 ## Roles
 
 ### Admin
 
-- View warehouse and activity summary
-- Create, activate, deactivate, and delete users
+- View dashboard metrics and recent activity
+- Create, activate, deactivate, edit, and delete users
 - Manage warehouse products
-- Assign and remove products from employees
+- Assign and remove products for employees
+- Adjust employee quantities
 - Post announcements
 - Update profile settings
 
 ### Employee
 
-- View assigned inventory summary
+- View assigned product summary
 - Record product usage
-- Review all activity records
+- Review complete activity history
+- Filter records by date and product
 - Export records to Excel
-- Print record history
-- Read announcements and view shared communication board
+- Print records
+- Read announcements and employee communication board
 - Update profile settings
 
 ## Default Seeded Accounts
 
-After seeding the database:
+After running the seed script:
 
 - Admin: `admin@vivainventory.com` / `admin123`
 - Employee: `employee@vivainventory.com` / `employee123`
@@ -62,13 +64,6 @@ After seeding the database:
 ```text
 vivainventory/
 ├── app/
-│   ├── (auth)/login/page.jsx
-│   ├── (admin)/admin/...
-│   ├── (employee)/employee/...
-│   ├── api/
-│   ├── globals.css
-│   ├── layout.jsx
-│   └── manifest.js
 ├── components/
 ├── lib/
 ├── public/
@@ -79,14 +74,15 @@ vivainventory/
 
 ## Environment Variables
 
-Create a `.env.local` file using `.env.example`.
+Create `.env.local` from `.env.example`.
 
 ```env
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=replace-this-with-a-long-random-secret
+DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DATABASE
 ```
 
-## Getting Started
+## Local Development
 
 ### 1. Install dependencies
 
@@ -94,19 +90,25 @@ NEXTAUTH_SECRET=replace-this-with-a-long-random-secret
 npm install
 ```
 
-### 2. Create environment file
+### 2. Create `.env.local`
+
+Windows:
 
 ```bash
 copy .env.example .env.local
 ```
 
-On macOS/Linux use:
+macOS/Linux:
 
 ```bash
 cp .env.example .env.local
 ```
 
-### 3. Seed the database
+### 3. Set PostgreSQL connection
+
+Update `DATABASE_URL` in `.env.local` to point to your Postgres database.
+
+### 4. Seed the database
 
 ```bash
 npm run seed
@@ -114,14 +116,14 @@ npm run seed
 
 This creates:
 
-- all required SQLite tables
+- all required tables
 - the default admin account
 - one sample employee
-- sample products
-- sample records
+- sample warehouse products
+- sample inventory activity
 - one sample announcement
 
-### 4. Start development server
+### 5. Start development server
 
 ```bash
 npm run dev
@@ -147,59 +149,53 @@ npm run start
 
 ## Vercel Deployment
 
-### Important limitation
+VivaInventory is deployable on Vercel because it now uses an external PostgreSQL database instead of local disk storage.
 
-This repository currently uses:
+### 1. Push this repository to GitHub
 
-- SQLite
-- `better-sqlite3`
-- a local `database.sqlite` file
+The project is already prepared for Git-based Vercel deployment.
 
-That setup is suitable for local development and traditional server hosting, but not for Vercel serverless deployment.
+### 2. Create a PostgreSQL database
 
-As of November 10, 2025, Vercel's SQLite guidance states that SQLite cannot be used on Vercel because serverless functions do not provide shared persistent local storage. Vercel's runtime documentation also states that functions have a read-only filesystem, with only temporary `/tmp` scratch space available.
+Use any hosted PostgreSQL provider. On Vercel, the current storage documentation points to managed database providers through the Vercel Marketplace, including providers such as Neon.
 
-Because of that, this exact project should **not** be deployed to Vercel in its current form.
+### 3. Import the project into Vercel
 
-### What to do if you want Vercel
+1. Open the Vercel dashboard
+2. Import the GitHub repository
+3. Keep the default Next.js framework detection
 
-To deploy VivaInventory on Vercel, first migrate the database layer from local SQLite to a hosted database, for example:
+### 4. Add environment variables in Vercel
 
-- Postgres through a Vercel-supported provider
-- another external managed relational database
+Set these variables in Project Settings → Environment Variables:
 
-After that migration, the Vercel flow is:
+- `NEXTAUTH_URL`
+- `NEXTAUTH_SECRET`
+- `DATABASE_URL`
 
-1. Import the GitHub repository into Vercel.
-2. Set required environment variables:
-   - `NEXTAUTH_URL`
-   - `NEXTAUTH_SECRET`
-   - database connection variables for the hosted database
-3. Deploy from the `main` branch.
+For production, `NEXTAUTH_URL` should be your deployed app URL.
 
-### If you want to keep SQLite
+### 5. Deploy
 
-If you want to keep the current SQLite + `better-sqlite3` architecture, deploy it on:
+Deploy from the `main` branch.
 
-- a VPS
-- a traditional Node.js server
-- a platform that supports persistent local disk and long-running Node processes
+### 6. Seed the production database
 
-### Recommendation
+After the database variables are configured, run the seed script against the production database from a trusted environment:
 
-If your target is Vercel, the next correct step is to migrate this app from SQLite to Postgres and then deploy it.
+```bash
+npm run seed
+```
 
-## Database
+## Database Tables
 
-SQLite tables created by the app:
+The application creates these PostgreSQL tables automatically:
 
 - `users`
 - `products`
 - `user_inventory`
 - `records`
 - `announcements`
-
-The SQLite database file is created locally as `database.sqlite` and is intentionally ignored from git.
 
 ## PWA Notes
 
@@ -209,9 +205,9 @@ VivaInventory includes:
 - install prompt support
 - service worker registration
 - offline fallback page
-- safe-area handling for iPhone notches and Dynamic Island
+- iPhone safe-area and Dynamic Island handling
 
-If the installed mobile icon or cached shell does not update immediately, remove the installed app and install it again.
+If the installed mobile icon or shell does not update immediately, remove the app from the home screen and install it again.
 
 ## Main User Flows
 
@@ -234,9 +230,14 @@ If the installed mobile icon or cached shell does not update immediately, remove
 ## Notes
 
 - Registration is disabled; users are created by admins only.
-- The app uses credentials authentication with email and password.
-- Local log files, build artifacts, environment files, and SQLite files are excluded from git.
-- Current deployment target for this exact codebase is local or self-hosted Node.js, not Vercel.
+- The app uses email/password credentials through NextAuth.js.
+- The backend requires `DATABASE_URL` to be set before API routes or login flows can access the database.
+- Local build artifacts, environment files, logs, and machine-specific folders are excluded from git.
+
+## Sources
+
+- Vercel storage overview: https://vercel.com/docs/storage
+- Vercel environment variables: https://vercel.com/docs/environment-variables/managing-environment-variables
 
 ## License
 
