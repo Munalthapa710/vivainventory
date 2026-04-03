@@ -4,15 +4,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import {
-  Bell,
-  CalendarDays,
-  ChevronDown,
-  Cog,
-  LogOut,
-  Menu,
-  Settings2
-} from "lucide-react";
+import { Bell, Cog, LogOut, Menu } from "lucide-react";
 import PwaInstallButton from "./PwaInstallButton";
 
 function titleFromPath(pathname) {
@@ -114,38 +106,21 @@ export default function Navbar({ user, onMenuClick }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <PwaInstallButton compact className="sm:hidden" />
-          <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 sm:flex">
-            <CalendarDays className="h-4 w-4 text-indigo-600" />
-            <span>{today}</span>
-          </div>
           <button
             type="button"
-            className="hidden rounded-2xl border border-slate-200 bg-white p-3 text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 sm:inline-flex"
+            className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
           >
             <Bell className="h-4 w-4" />
           </button>
-          <Link
-            href={settingsHref}
-            prefetch={false}
-            className="hidden rounded-2xl border border-slate-200 bg-white p-3 text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 sm:inline-flex"
-          >
-            <Settings2 className="h-4 w-4" />
-          </Link>
           <div className="relative" ref={profileRef}>
             <button
               type="button"
-              className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2.5 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:gap-3 sm:px-3"
+              className="rounded-2xl border border-slate-200 bg-white p-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
               onClick={() => setProfileOpen((current) => !current)}
             >
               <div className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-600 text-sm font-semibold text-white">
                 {initials || "VI"}
               </div>
-              <div className="hidden sm:block">
-                <p className="text-sm font-semibold text-slate-900">{user.name}</p>
-                <p className="text-xs text-slate-500">{user.email}</p>
-              </div>
-              <ChevronDown className="h-4 w-4 text-slate-400" />
             </button>
 
             {profileOpen && (
