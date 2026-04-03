@@ -145,6 +145,50 @@ npm run build
 npm run start
 ```
 
+## Vercel Deployment
+
+### Important limitation
+
+This repository currently uses:
+
+- SQLite
+- `better-sqlite3`
+- a local `database.sqlite` file
+
+That setup is suitable for local development and traditional server hosting, but not for Vercel serverless deployment.
+
+As of November 10, 2025, Vercel's SQLite guidance states that SQLite cannot be used on Vercel because serverless functions do not provide shared persistent local storage. Vercel's runtime documentation also states that functions have a read-only filesystem, with only temporary `/tmp` scratch space available.
+
+Because of that, this exact project should **not** be deployed to Vercel in its current form.
+
+### What to do if you want Vercel
+
+To deploy VivaInventory on Vercel, first migrate the database layer from local SQLite to a hosted database, for example:
+
+- Postgres through a Vercel-supported provider
+- another external managed relational database
+
+After that migration, the Vercel flow is:
+
+1. Import the GitHub repository into Vercel.
+2. Set required environment variables:
+   - `NEXTAUTH_URL`
+   - `NEXTAUTH_SECRET`
+   - database connection variables for the hosted database
+3. Deploy from the `main` branch.
+
+### If you want to keep SQLite
+
+If you want to keep the current SQLite + `better-sqlite3` architecture, deploy it on:
+
+- a VPS
+- a traditional Node.js server
+- a platform that supports persistent local disk and long-running Node processes
+
+### Recommendation
+
+If your target is Vercel, the next correct step is to migrate this app from SQLite to Postgres and then deploy it.
+
 ## Database
 
 SQLite tables created by the app:
@@ -192,6 +236,7 @@ If the installed mobile icon or cached shell does not update immediately, remove
 - Registration is disabled; users are created by admins only.
 - The app uses credentials authentication with email and password.
 - Local log files, build artifacts, environment files, and SQLite files are excluded from git.
+- Current deployment target for this exact codebase is local or self-hosted Node.js, not Vercel.
 
 ## License
 
