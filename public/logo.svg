@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">VivaInventory Logo</title>
+  <desc id="desc">Blue circular logo with a white construction tower mark</desc>
+  <circle cx="256" cy="256" r="238" fill="#4e9bcf" stroke="#ffffff" stroke-width="24" />
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M215 106h82" stroke-width="22" />
+    <path d="M183 173h146" stroke-width="22" />
+    <path d="M146 257h220" stroke-width="22" />
+    <path d="M219 106 166 398" stroke-width="22" />
+    <path d="M293 106 346 398" stroke-width="22" />
+    <path d="M188 224h136" stroke-width="20" />
+    <path d="M188 224 257 296 324 224" stroke-width="20" />
+    <path d="M188 224 257 398" stroke-width="20" />
+    <path d="M324 224 257 398" stroke-width="20" />
+  </g>
+</svg>
