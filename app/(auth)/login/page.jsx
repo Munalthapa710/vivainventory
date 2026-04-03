@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { Eye, EyeOff, HardHat } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import AppSplashScreen from "@/components/AppSplashScreen";
 import BrandLogo from "@/components/BrandLogo";
@@ -76,16 +76,7 @@ export default function LoginPage() {
         <div className="relative w-full max-w-lg rounded-[2rem] border border-white/80 bg-white/92 p-7 text-slate-900 shadow-[0_30px_90px_rgba(15,23,42,0.14)] backdrop-blur sm:p-8 xl:p-10">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">
-                Secure Sign In
-              </p>
-              <h1 className="mt-3 text-3xl font-bold text-slate-950">
-                Welcome back
-              </h1>
-              <p className="mt-3 max-w-sm text-sm leading-6 text-slate-500">
-                Sign in with the credentials assigned to your account to access
-                warehouse operations, employee allocations, and stock history.
-              </p>
+              <h1 className="text-3xl font-bold text-slate-950">Welcome back</h1>
             </div>
             <div className="hidden sm:block">
               <PwaInstallButton variant="secondary" />
@@ -105,10 +96,6 @@ export default function LoginPage() {
               <div className="sm:hidden">
                 <PwaInstallButton compact />
               </div>
-            </div>
-            <div className="mt-4 flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-slate-600">
-              <HardHat className="h-5 w-5 shrink-0 text-orange-500" />
-              <p>Use your work account credentials to continue.</p>
             </div>
           </div>
 
@@ -167,17 +154,6 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
-
-          <div className="mt-6 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Need access?
-            </p>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Employee accounts are created by an administrator. Contact your
-              office or system manager if you need a new login or password
-              reset.
-            </p>
-          </div>
         </div>
       </section>
     </main>
