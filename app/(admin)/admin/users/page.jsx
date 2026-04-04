@@ -180,7 +180,12 @@ export default function AdminUsersPage() {
           },
           {
             key: "email",
-            label: "Email"
+            label: "Email",
+            render: (row) => (
+              <span className="break-all text-sm text-slate-600">
+                {row.email}
+              </span>
+            )
           },
           {
             key: "created_at",

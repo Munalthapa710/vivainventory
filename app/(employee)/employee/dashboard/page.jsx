@@ -116,14 +116,27 @@ export default function EmployeeDashboardPage() {
               label: "Category"
             },
             {
-              key: "assigned_quantity",
-              label: "Assigned",
-              render: (row) => `${row.assigned_quantity} ${row.unit}`
-            },
-            {
-              key: "remaining_quantity",
-              label: "Remaining",
-              render: (row) => `${row.remaining_quantity} ${row.unit}`
+              key: "quantity_breakdown",
+              label: "Quantity",
+              sortable: false,
+              searchValue: (row) =>
+                `allocated ${row.assigned_quantity} used ${row.used_quantity} left ${row.remaining_quantity} ${row.unit}`,
+              render: (row) => (
+                <div className="space-y-1 text-sm">
+                  <p className="text-slate-700">
+                    <span className="font-semibold text-slate-900">Allocated:</span>{" "}
+                    {row.assigned_quantity} {row.unit}
+                  </p>
+                  <p className="text-slate-600">
+                    <span className="font-semibold text-slate-900">Used:</span>{" "}
+                    {row.used_quantity} {row.unit}
+                  </p>
+                  <p className="text-slate-600">
+                    <span className="font-semibold text-slate-900">Left:</span>{" "}
+                    {row.remaining_quantity} {row.unit}
+                  </p>
+                </div>
+              )
             },
             {
               key: "status",

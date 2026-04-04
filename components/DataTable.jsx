@@ -262,7 +262,7 @@ export default function DataTable({
                   <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                     {column.label}
                   </p>
-                  <div className="min-w-0 text-sm text-slate-700">
+                  <div className="min-w-0 break-words text-sm text-slate-700">
                     {renderCell(row, column)}
                   </div>
                 </div>
@@ -327,7 +327,9 @@ export default function DataTable({
                 >
                   {columns.map((column) => (
                     <td key={getColumnId(column)} className={column.className}>
-                      {renderCell(row, column)}
+                      <div className="break-words">
+                        {renderCell(row, column)}
+                      </div>
                     </td>
                   ))}
                 </tr>

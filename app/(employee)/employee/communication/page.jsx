@@ -101,17 +101,19 @@ export default function EmployeeCommunicationPage() {
             {employees.map((employee) => (
               <article
                 key={employee.id}
-                className="rounded-3xl border border-slate-200 bg-white p-5"
+                className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-5"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3">
                   <div className="rounded-2xl bg-orange-100 p-3 text-orange-600">
                     <Users className="h-5 w-5" />
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">
+                  <div className="min-w-0">
+                    <h3 className="break-words text-lg font-bold text-slate-900">
                       {employee.full_name}
                     </h3>
-                    <p className="text-sm text-slate-500">{employee.email}</p>
+                    <p className="break-all text-sm text-slate-500">
+                      {employee.email}
+                    </p>
                   </div>
                 </div>
 
@@ -126,16 +128,16 @@ export default function EmployeeCommunicationPage() {
                         key={`${employee.id}-${product.product_id}`}
                         className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-semibold text-slate-900">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="break-words font-semibold text-slate-900">
                               {product.name}
                             </p>
-                            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                            <p className="mt-1 break-words text-xs uppercase tracking-[0.18em] text-slate-400">
                               {product.category}
                             </p>
                           </div>
-                          <div className="text-right">
+                          <div className="shrink-0 sm:text-right">
                             <p className="text-sm font-semibold text-slate-900">
                               {product.remaining_quantity} {product.unit}
                             </p>

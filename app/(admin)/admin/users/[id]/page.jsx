@@ -142,9 +142,10 @@ export default function AdminUserInventoryPage() {
           <h1 className="mt-2 text-3xl font-bold text-slate-900">
             {employee?.full_name}
           </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            {employee?.email} - Created {formatDate(employee?.created_at)}
-          </p>
+          <div className="mt-2 space-y-1 text-sm text-slate-500">
+            <p className="break-all">{employee?.email}</p>
+            <p>Created {formatDate(employee?.created_at)}</p>
+          </div>
         </div>
 
         <button className="btn-primary" onClick={() => setAssignModalOpen(true)}>
@@ -181,25 +182,47 @@ export default function AdminUserInventoryPage() {
             )
           },
           {
-            key: "assigned_quantity",
-            label: "Assigned",
+            key: "quantity_breakdown",
+            label: "Quantity",
+            sortable: false,
+            searchValue: (row) =>
+              `allocated ${row.assigned_quantity} used ${row.used_quantity} left ${row.remaining_quantity} ${row.unit}`,
             render: (row) =>
               editingProductId === row.product_id ? (
-                <input
-                  className="input max-w-28"
-                  type="number"
-                  min="1"
-                  value={editQuantity}
-                  onChange={(event) => setEditQuantity(event.target.value)}
-                />
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    Allocated
+                  </label>
+                  <input
+                    className="input max-w-28"
+                    type="number"
+                    min={Math.max(1, row.used_quantity)}
+                    value={editQuantity}
+                    onChange={(event) => setEditQuantity(event.target.value)}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Used: {row.used_quantity} {row.unit}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Left after save: {Math.max(Number(editQuantity || 0) - row.used_quantity, 0)} {row.unit}
+                  </p>
+                </div>
               ) : (
-                `${row.assigned_quantity} ${row.unit}`
+                <div className="space-y-1 text-sm">
+                  <p className="text-slate-700">
+                    <span className="font-semibold text-slate-900">Allocated:</span>{" "}
+                    {row.assigned_quantity} {row.unit}
+                  </p>
+                  <p className="text-slate-600">
+                    <span className="font-semibold text-slate-900">Used:</span>{" "}
+                    {row.used_quantity} {row.unit}
+                  </p>
+                  <p className="text-slate-600">
+                    <span className="font-semibold text-slate-900">Left:</span>{" "}
+                    {row.remaining_quantity} {row.unit}
+                  </p>
+                </div>
               )
-          },
-          {
-            key: "remaining_quantity",
-            label: "Remaining",
-            render: (row) => `${row.remaining_quantity} ${row.unit}`
           },
           {
             key: "status",
