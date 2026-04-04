@@ -37,8 +37,11 @@ export async function GET() {
           ui.remaining_quantity,
           ui.assigned_at,
           p.name,
+          p.sku,
+          p.barcode,
           p.category,
           p.unit,
+          p.storage_location,
           p.description,
           p.low_stock_threshold
         FROM user_inventory ui

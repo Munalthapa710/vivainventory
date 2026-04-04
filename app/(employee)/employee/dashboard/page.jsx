@@ -88,13 +88,28 @@ export default function EmployeeDashboardPage() {
           data={inventory}
           pageSize={8}
           searchable
-          searchPlaceholder="Search your assigned products"
+          searchPlaceholder="Search by product, SKU, or location"
           initialSort={{ key: "name", direction: "asc" }}
           emptyMessage="No products have been assigned to you."
           columns={[
             {
               key: "name",
-              label: "Product"
+              label: "Product",
+              searchValue: (row) =>
+                [row.name, row.sku, row.storage_location, row.category]
+                  .filter(Boolean)
+                  .join(" "),
+              render: (row) => (
+                <div>
+                  <p className="font-semibold text-slate-900">{row.name}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
+                    {row.sku} - {row.category}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {row.storage_location}
+                  </p>
+                </div>
+              )
             },
             {
               key: "category",

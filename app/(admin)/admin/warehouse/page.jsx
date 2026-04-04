@@ -7,12 +7,16 @@ import DataTable from "@/components/DataTable";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import Modal from "@/components/Modal";
 import { apiRequest } from "@/lib/client";
+import { DEFAULT_STORAGE_LOCATION } from "@/lib/inventory";
 
 const initialProductForm = {
   name: "",
+  sku: "",
+  barcode: "",
   category: "",
   total_quantity: 0,
   unit: "",
+  storage_location: DEFAULT_STORAGE_LOCATION,
   description: "",
   low_stock_threshold: 0
 };
@@ -135,28 +139,91 @@ export default function WarehousePage() {
         data={products}
         pageSize={8}
         searchable
-        searchPlaceholder="Search warehouse products"
+        searchPlaceholder="Search by product, SKU, barcode, or location"
         initialSort={{ key: "name", direction: "asc" }}
         columns={[
           {
             key: "name",
             label: "Product",
+            searchValue: (row) =>
+              [
+                row.name,
+                row.sku,
+                row.barcode,
+                row.category,
+                row.storage_location,
+                row.description
+              ]
+                .filter(Boolean)
+                .join(" "),
             render: (row) =>
               editingId === row.id ? (
-                <input
-                  className="input"
-                  value={editForm.name}
-                  onChange={(event) =>
-                    setEditForm((current) => ({
-                      ...current,
-                      name: event.target.value
-                    }))
-                  }
-                />
+                <div className="space-y-2">
+                  <input
+                    className="input"
+                    value={editForm.name}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        name: event.target.value
+                      }))
+                    }
+                  />
+                  <textarea
+                    className="input min-h-20"
+                    value={editForm.description}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        description: event.target.value
+                      }))
+                    }
+                    placeholder="Product description"
+                  />
+                </div>
               ) : (
                 <div>
                   <p className="font-semibold text-slate-900">{row.name}</p>
                   <p className="mt-1 text-xs text-slate-400">{row.description}</p>
+                </div>
+              )
+          },
+          {
+            key: "sku",
+            label: "Identity",
+            sortValue: (row) => row.sku,
+            render: (row) =>
+              editingId === row.id ? (
+                <div className="space-y-2">
+                  <input
+                    className="input"
+                    value={editForm.sku}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        sku: event.target.value.toUpperCase()
+                      }))
+                    }
+                    placeholder="SKU"
+                  />
+                  <input
+                    className="input"
+                    value={editForm.barcode}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        barcode: event.target.value
+                      }))
+                    }
+                    placeholder="Barcode (optional)"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <p className="font-medium text-slate-700">{row.sku}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {row.barcode || "No barcode"}
+                  </p>
                 </div>
               )
           },
@@ -186,39 +253,52 @@ export default function WarehousePage() {
             searchValue: (row) => `${row.total_quantity} ${row.unit}`,
             render: (row) =>
               editingId === row.id ? (
-                <input
-                  className="input max-w-28"
-                  type="number"
-                  min="0"
-                  value={editForm.total_quantity}
-                  onChange={(event) =>
-                    setEditForm((current) => ({
-                      ...current,
-                      total_quantity: event.target.value
-                    }))
-                  }
-                />
+                <div className="space-y-2">
+                  <input
+                    className="input max-w-28"
+                    type="number"
+                    min="0"
+                    value={editForm.total_quantity}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        total_quantity: event.target.value
+                      }))
+                    }
+                  />
+                  <input
+                    className="input max-w-24"
+                    value={editForm.unit}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        unit: event.target.value
+                      }))
+                    }
+                    placeholder="Unit"
+                  />
+                </div>
               ) : (
                 `${row.total_quantity} ${row.unit}`
               )
           },
           {
-            key: "unit",
-            label: "Unit",
+            key: "storage_location",
+            label: "Location",
             render: (row) =>
               editingId === row.id ? (
                 <input
-                  className="input max-w-24"
-                  value={editForm.unit}
+                  className="input min-w-[12rem]"
+                  value={editForm.storage_location}
                   onChange={(event) =>
                     setEditForm((current) => ({
                       ...current,
-                      unit: event.target.value
+                      storage_location: event.target.value
                     }))
                   }
                 />
               ) : (
-                row.unit
+                row.storage_location
               )
           },
           {
@@ -289,9 +369,12 @@ export default function WarehousePage() {
                       setEditingId(row.id);
                       setEditForm({
                         name: row.name,
+                        sku: row.sku,
+                        barcode: row.barcode || "",
                         category: row.category,
                         total_quantity: row.total_quantity,
                         unit: row.unit,
+                        storage_location: row.storage_location,
                         description: row.description || "",
                         low_stock_threshold: row.low_stock_threshold
                       });
@@ -325,19 +408,35 @@ export default function WarehousePage() {
         }}
       >
         <form className="space-y-4" onSubmit={handleCreateProduct}>
-          <div>
-            <label className="label">Product name</label>
-            <input
-              className="input"
-              value={createForm.name}
-              onChange={(event) =>
-                setCreateForm((current) => ({
-                  ...current,
-                  name: event.target.value
-                }))
-              }
-              required
-            />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="label">Product name</label>
+              <input
+                className="input"
+                value={createForm.name}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    name: event.target.value
+                  }))
+                }
+                required
+              />
+            </div>
+            <div>
+              <label className="label">SKU</label>
+              <input
+                className="input"
+                value={createForm.sku}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    sku: event.target.value.toUpperCase()
+                  }))
+                }
+                required
+              />
+            </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div>
@@ -366,6 +465,36 @@ export default function WarehousePage() {
                   }))
                 }
                 required
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="label">Storage location</label>
+              <input
+                className="input"
+                value={createForm.storage_location}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    storage_location: event.target.value
+                  }))
+                }
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Barcode</label>
+              <input
+                className="input"
+                value={createForm.barcode}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    barcode: event.target.value
+                  }))
+                }
+                placeholder="Optional"
               />
             </div>
           </div>

@@ -143,7 +143,7 @@ export default function AdminUserInventoryPage() {
             {employee?.full_name}
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            {employee?.email} · Created {formatDate(employee?.created_at)}
+            {employee?.email} - Created {formatDate(employee?.created_at)}
           </p>
         </div>
 
@@ -157,18 +157,25 @@ export default function AdminUserInventoryPage() {
         data={products}
         pageSize={8}
         searchable
-        searchPlaceholder="Search assigned products"
+        searchPlaceholder="Search by product, SKU, or location"
         initialSort={{ key: "name", direction: "asc" }}
         emptyMessage="No products assigned to this employee yet."
         columns={[
           {
             key: "name",
             label: "Product",
+            searchValue: (row) =>
+              [row.name, row.sku, row.storage_location, row.category]
+                .filter(Boolean)
+                .join(" "),
             render: (row) => (
               <div>
                 <p className="font-semibold text-slate-900">{row.name}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-                  {row.category}
+                  {row.sku} - {row.category}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {row.storage_location}
                 </p>
               </div>
             )
@@ -293,7 +300,8 @@ export default function AdminUserInventoryPage() {
               <option value="">Select a product</option>
               {availableWarehouseProducts.map((product) => (
                 <option key={product.id} value={product.id}>
-                  {product.name} ({product.total_quantity} {product.unit} available)
+                  {product.name} [{product.sku}] ({product.total_quantity}{" "}
+                  {product.unit} available in {product.storage_location})
                 </option>
               ))}
             </select>

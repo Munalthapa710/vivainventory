@@ -6,6 +6,7 @@ import {
   serializeProduct
 } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
+import { DEFAULT_STORAGE_LOCATION } from "@/lib/inventory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,9 +16,12 @@ async function getAllProducts() {
     SELECT
       id,
       name,
+      sku,
+      barcode,
       category,
       total_quantity,
       unit,
+      storage_location,
       description,
       low_stock_threshold,
       created_at
@@ -26,6 +30,19 @@ async function getAllProducts() {
   `);
 
   return products.map(serializeProduct);
+}
+
+function normalizeSku(value) {
+  return value?.trim().toUpperCase() || "";
+}
+
+function normalizeBarcode(value) {
+  const barcode = value?.trim();
+  return barcode || null;
+}
+
+function normalizeStorageLocation(value) {
+  return value?.trim() || DEFAULT_STORAGE_LOCATION;
 }
 
 export async function GET(request) {
@@ -74,15 +91,21 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const name = body.name?.trim();
+    const sku = normalizeSku(body.sku);
+    const barcode = normalizeBarcode(body.barcode);
     const category = body.category?.trim();
     const unit = body.unit?.trim();
+    const storageLocation = normalizeStorageLocation(body.storage_location);
     const description = body.description?.trim() || "";
     const totalQuantity = Number(body.total_quantity);
     const lowStockThreshold = Number(body.low_stock_threshold);
 
-    if (!name || !category || !unit) {
+    if (!name || !sku || !category || !unit || !storageLocation) {
       return NextResponse.json(
-        { message: "Name, category, and unit are required." },
+        {
+          message:
+            "Name, SKU, category, unit, and storage location are required."
+        },
         { status: 400 }
       );
     }
@@ -111,29 +134,71 @@ export async function POST(request) {
       );
     }
 
+    const existingSku = await queryOne(
+      "SELECT id FROM products WHERE LOWER(sku) = LOWER($1)",
+      [sku]
+    );
+
+    if (existingSku) {
+      return NextResponse.json(
+        { message: "Another product already uses this SKU." },
+        { status: 409 }
+      );
+    }
+
+    if (barcode) {
+      const existingBarcode = await queryOne(
+        "SELECT id FROM products WHERE LOWER(barcode) = LOWER($1)",
+        [barcode]
+      );
+
+      if (existingBarcode) {
+        return NextResponse.json(
+          { message: "Another product already uses this barcode." },
+          { status: 409 }
+        );
+      }
+    }
+
     const product = await queryOne(
       `
         INSERT INTO products (
           name,
+          sku,
+          barcode,
           category,
           total_quantity,
           unit,
+          storage_location,
           description,
           low_stock_threshold,
           created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
         RETURNING
           id,
           name,
+          sku,
+          barcode,
           category,
           total_quantity,
           unit,
+          storage_location,
           description,
           low_stock_threshold,
           created_at
       `,
-      [name, category, totalQuantity, unit, description, lowStockThreshold]
+      [
+        name,
+        sku,
+        barcode,
+        category,
+        totalQuantity,
+        unit,
+        storageLocation,
+        description,
+        lowStockThreshold
+      ]
     );
 
     return NextResponse.json(
@@ -174,15 +239,21 @@ export async function PATCH(request) {
     }
 
     const name = body.name?.trim();
+    const sku = normalizeSku(body.sku);
+    const barcode = normalizeBarcode(body.barcode);
     const category = body.category?.trim();
     const unit = body.unit?.trim();
+    const storageLocation = normalizeStorageLocation(body.storage_location);
     const description = body.description?.trim() || "";
     const totalQuantity = Number(body.total_quantity);
     const lowStockThreshold = Number(body.low_stock_threshold);
 
-    if (!name || !category || !unit) {
+    if (!name || !sku || !category || !unit || !storageLocation) {
       return NextResponse.json(
-        { message: "Name, category, and unit are required." },
+        {
+          message:
+            "Name, SKU, category, unit, and storage location are required."
+        },
         { status: 400 }
       );
     }
@@ -211,32 +282,67 @@ export async function PATCH(request) {
       );
     }
 
+    const skuConflict = await queryOne(
+      "SELECT id FROM products WHERE LOWER(sku) = LOWER($1) AND id != $2",
+      [sku, id]
+    );
+
+    if (skuConflict) {
+      return NextResponse.json(
+        { message: "Another product already uses this SKU." },
+        { status: 409 }
+      );
+    }
+
+    if (barcode) {
+      const barcodeConflict = await queryOne(
+        "SELECT id FROM products WHERE LOWER(barcode) = LOWER($1) AND id != $2",
+        [barcode, id]
+      );
+
+      if (barcodeConflict) {
+        return NextResponse.json(
+          { message: "Another product already uses this barcode." },
+          { status: 409 }
+        );
+      }
+    }
+
     const updatedProduct = await queryOne(
       `
         UPDATE products
         SET
           name = $1,
-          category = $2,
-          total_quantity = $3,
-          unit = $4,
-          description = $5,
-          low_stock_threshold = $6
-        WHERE id = $7
+          sku = $2,
+          barcode = $3,
+          category = $4,
+          total_quantity = $5,
+          unit = $6,
+          storage_location = $7,
+          description = $8,
+          low_stock_threshold = $9
+        WHERE id = $10
         RETURNING
           id,
           name,
+          sku,
+          barcode,
           category,
           total_quantity,
           unit,
+          storage_location,
           description,
           low_stock_threshold,
           created_at
       `,
       [
         name,
+        sku,
+        barcode,
         category,
         totalQuantity,
         unit,
+        storageLocation,
         description,
         lowStockThreshold,
         id

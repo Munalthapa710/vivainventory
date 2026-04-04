@@ -6,7 +6,12 @@ import toast from "react-hot-toast";
 import { Download, Printer } from "lucide-react";
 import DataTable from "@/components/DataTable";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
-import { apiRequest, formatActionLabel, formatDate } from "@/lib/client";
+import {
+  apiRequest,
+  formatActionLabel,
+  formatDate,
+  formatReasonLabel
+} from "@/lib/client";
 
 export default function EmployeeRecordsPage() {
   const [loading, setLoading] = useState(true);
@@ -36,13 +41,9 @@ export default function EmployeeRecordsPage() {
         query.set("productId", filters.productId);
       }
 
-      const [recordsData, inventoryData] = await Promise.all([
-        apiRequest(`/api/records?${query.toString()}`),
-        apiRequest("/api/inventory")
-      ]);
-
+      const recordsData = await apiRequest(`/api/records?${query.toString()}`);
       setRecords(recordsData.records);
-      setProducts(inventoryData.products);
+      setProducts(recordsData.availableProducts || []);
     } catch (error) {
       toast.error(error.message || "Unable to load records.");
     } finally {
@@ -56,10 +57,13 @@ export default function EmployeeRecordsPage() {
 
   const exportRows = records.map((record) => ({
     Product: record.product_name,
+    SKU: record.sku || "",
     Action: formatActionLabel(record.action_type),
+    Reason: formatReasonLabel(record.reason_code),
     "Qty Changed": record.quantity_changed,
     "Qty Before": record.quantity_before,
     "Qty After": record.quantity_after,
+    Location: record.storage_location || "",
     Notes: record.notes || "",
     Date: formatDate(record.created_at)
   }));
@@ -86,7 +90,7 @@ export default function EmployeeRecordsPage() {
             Inventory history
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Filter your product usage history and export it when needed.
+            Filter your stock movement history and export it when needed.
           </p>
         </div>
 
@@ -151,7 +155,7 @@ export default function EmployeeRecordsPage() {
               <option value="">All products</option>
               {products.map((product) => (
                 <option key={product.product_id} value={product.product_id}>
-                  {product.name}
+                  {product.name} [{product.sku}]
                 </option>
               ))}
             </select>
@@ -164,18 +168,41 @@ export default function EmployeeRecordsPage() {
           data={records}
           pageSize={10}
           searchable
-          searchPlaceholder="Search by product, action, or notes"
+          searchPlaceholder="Search by product, SKU, reason, or notes"
           initialSort={{ key: "created_at", direction: "desc" }}
           emptyMessage="No records found for the selected filters."
           columns={[
             {
               key: "product_name",
-              label: "Product"
+              label: "Product",
+              searchValue: (row) =>
+                [
+                  row.product_name,
+                  row.sku,
+                  row.storage_location,
+                  row.notes,
+                  row.reason_code
+                ]
+                  .filter(Boolean)
+                  .join(" "),
+              render: (row) => (
+                <div>
+                  <p className="font-semibold text-slate-900">{row.product_name}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
+                    {row.sku || "-"}
+                  </p>
+                </div>
+              )
             },
             {
               key: "action_type",
               label: "Action",
               render: (row) => formatActionLabel(row.action_type)
+            },
+            {
+              key: "reason_code",
+              label: "Reason",
+              render: (row) => formatReasonLabel(row.reason_code)
             },
             {
               key: "quantity_changed",
@@ -198,6 +225,11 @@ export default function EmployeeRecordsPage() {
               key: "notes",
               label: "Notes",
               render: (row) => row.notes || "-"
+            },
+            {
+              key: "storage_location",
+              label: "Location",
+              render: (row) => row.storage_location || "-"
             }
           ]}
         />

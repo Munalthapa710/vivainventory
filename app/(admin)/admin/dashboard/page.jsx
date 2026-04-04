@@ -23,7 +23,12 @@ import {
 import DataTable from "@/components/DataTable";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import StatsCard from "@/components/StatsCard";
-import { apiRequest, formatActionLabel, formatDate } from "@/lib/client";
+import {
+  apiRequest,
+  formatActionLabel,
+  formatDate,
+  formatReasonLabel
+} from "@/lib/client";
 
 const initialAnnouncement = {
   title: "",
@@ -266,12 +271,29 @@ export default function AdminDashboardPage() {
             },
             {
               key: "product_name",
-              label: "Product"
+              label: "Product",
+              searchValue: (row) =>
+                [row.product_name, row.sku, row.reason_code, row.notes]
+                  .filter(Boolean)
+                  .join(" "),
+              render: (row) => (
+                <div>
+                  <p className="font-semibold text-slate-900">{row.product_name}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
+                    {row.sku || "-"}
+                  </p>
+                </div>
+              )
             },
             {
               key: "action_type",
               label: "Action",
               render: (row) => formatActionLabel(row.action_type)
+            },
+            {
+              key: "reason_code",
+              label: "Reason",
+              render: (row) => formatReasonLabel(row.reason_code)
             },
             {
               key: "quantity_changed",

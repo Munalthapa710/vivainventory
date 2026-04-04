@@ -8,6 +8,7 @@ import {
   withTransaction
 } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
+import { SYSTEM_REASON_CODES } from "@/lib/inventory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,8 +36,11 @@ async function getInventoryForUser(userId, client) {
         ui.remaining_quantity,
         ui.assigned_at,
         p.name,
+        p.sku,
+        p.barcode,
         p.category,
         p.unit,
+        p.storage_location,
         p.description,
         p.low_stock_threshold
       FROM user_inventory ui
@@ -104,6 +108,7 @@ export async function POST(request, { params }) {
     const body = await request.json();
     const productId = Number(body.productId);
     const quantity = Number(body.quantity);
+    const notes = body.notes?.trim() || "Admin assigned warehouse stock.";
 
     if (!Number.isInteger(productId) || !Number.isInteger(quantity) || quantity <= 0) {
       return NextResponse.json(
@@ -164,10 +169,11 @@ export async function POST(request, { params }) {
             userId,
             productId,
             actionType: "assigned",
+            reasonCode: SYSTEM_REASON_CODES.allocationIncrease,
             quantityChanged: quantity,
             quantityBefore: Number(existing.remaining_quantity),
             quantityAfter: updatedRemaining,
-            notes: body.notes || "Admin increased employee allocation."
+            notes
           },
           client
         );
@@ -191,10 +197,11 @@ export async function POST(request, { params }) {
             userId,
             productId,
             actionType: "assigned",
+            reasonCode: SYSTEM_REASON_CODES.warehouseAllocation,
             quantityChanged: quantity,
             quantityBefore: 0,
             quantityAfter: quantity,
-            notes: body.notes || "Admin assigned warehouse stock."
+            notes
           },
           client
         );
@@ -329,6 +336,10 @@ export async function PATCH(request, { params }) {
             userId,
             productId,
             actionType: "adjusted",
+            reasonCode:
+              delta > 0
+                ? SYSTEM_REASON_CODES.allocationIncrease
+                : SYSTEM_REASON_CODES.allocationReduction,
             quantityChanged: Math.abs(delta),
             quantityBefore: Number(assignment.remaining_quantity),
             quantityAfter: newRemainingQuantity,
@@ -402,13 +413,14 @@ export async function DELETE(request, { params }) {
       );
 
       await logRecord(
-        {
-          userId,
-          productId,
-          actionType: "removed",
-          quantityChanged: Number(assignment.remaining_quantity),
-          quantityBefore: Number(assignment.remaining_quantity),
-          quantityAfter: 0,
+          {
+            userId,
+            productId,
+            actionType: "removed",
+            reasonCode: SYSTEM_REASON_CODES.adminRemoval,
+            quantityChanged: Number(assignment.remaining_quantity),
+            quantityBefore: Number(assignment.remaining_quantity),
+            quantityAfter: 0,
           notes: "Admin removed this product from the employee."
         },
         client
