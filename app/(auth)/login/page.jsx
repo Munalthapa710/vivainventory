@@ -20,9 +20,13 @@ export default function LoginPage() {
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role) {
       const nextPath =
-        session.user.role === "admin"
-          ? "/admin/dashboard"
-          : "/employee/dashboard";
+        session.user.mustChangePassword
+          ? session.user.role === "admin"
+            ? "/admin/settings?forcePasswordChange=1"
+            : "/employee/settings?forcePasswordChange=1"
+          : session.user.role === "admin"
+            ? "/admin/dashboard"
+            : "/employee/dashboard";
 
       window.location.replace(nextPath);
     }
@@ -51,9 +55,13 @@ export default function LoginPage() {
       const freshSession = await sessionResponse.json();
 
       const nextPath =
-        freshSession?.user?.role === "admin"
-          ? "/admin/dashboard"
-          : "/employee/dashboard";
+        freshSession?.user?.mustChangePassword
+          ? freshSession?.user?.role === "admin"
+            ? "/admin/settings?forcePasswordChange=1"
+            : "/employee/settings?forcePasswordChange=1"
+          : freshSession?.user?.role === "admin"
+            ? "/admin/dashboard"
+            : "/employee/dashboard";
 
       window.location.assign(nextPath);
     } catch (error) {

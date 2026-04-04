@@ -87,6 +87,9 @@ export default function EmployeeDashboardPage() {
         <DataTable
           data={inventory}
           pageSize={8}
+          searchable
+          searchPlaceholder="Search your assigned products"
+          initialSort={{ key: "name", direction: "asc" }}
           emptyMessage="No products have been assigned to you."
           columns={[
             {
@@ -110,6 +113,7 @@ export default function EmployeeDashboardPage() {
             {
               key: "status",
               label: "Status",
+              sortable: false,
               render: (row) => (
                 <span className={row.low_stock ? "badge-warning" : "badge-success"}>
                   {row.low_stock ? "Low stock" : "Healthy"}

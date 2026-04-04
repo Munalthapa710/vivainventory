@@ -5,6 +5,20 @@ function getDashboardPath(role) {
   return role === "admin" ? "/admin/dashboard" : "/employee/dashboard";
 }
 
+function getSettingsPath(role) {
+  return role === "admin" ? "/admin/settings" : "/employee/settings";
+}
+
+function getLandingPath(token) {
+  if (!token?.role) {
+    return "/login";
+  }
+
+  return token.mustChangePassword
+    ? `${getSettingsPath(token.role)}?forcePasswordChange=1`
+    : getDashboardPath(token.role);
+}
+
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
   const token = await getToken({
@@ -14,9 +28,7 @@ export async function middleware(request) {
 
   if (pathname === "/login") {
     if (token?.role) {
-      return NextResponse.redirect(
-        new URL(getDashboardPath(token.role), request.url)
-      );
+      return NextResponse.redirect(new URL(getLandingPath(token), request.url));
     }
 
     return NextResponse.next();
@@ -28,9 +40,11 @@ export async function middleware(request) {
     }
 
     if (token.role !== "admin") {
-      return NextResponse.redirect(
-        new URL(getDashboardPath(token.role), request.url)
-      );
+      return NextResponse.redirect(new URL(getLandingPath(token), request.url));
+    }
+
+    if (token.mustChangePassword && pathname !== "/admin/settings") {
+      return NextResponse.redirect(new URL(getLandingPath(token), request.url));
     }
   }
 
@@ -40,9 +54,11 @@ export async function middleware(request) {
     }
 
     if (token.role !== "employee") {
-      return NextResponse.redirect(
-        new URL(getDashboardPath(token.role), request.url)
-      );
+      return NextResponse.redirect(new URL(getLandingPath(token), request.url));
+    }
+
+    if (token.mustChangePassword && pathname !== "/employee/settings") {
+      return NextResponse.redirect(new URL(getLandingPath(token), request.url));
     }
   }
 

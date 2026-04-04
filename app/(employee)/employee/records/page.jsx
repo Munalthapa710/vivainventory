@@ -163,6 +163,9 @@ export default function EmployeeRecordsPage() {
         <DataTable
           data={records}
           pageSize={10}
+          searchable
+          searchPlaceholder="Search by product, action, or notes"
+          initialSort={{ key: "created_at", direction: "desc" }}
           emptyMessage="No records found for the selected filters."
           columns={[
             {

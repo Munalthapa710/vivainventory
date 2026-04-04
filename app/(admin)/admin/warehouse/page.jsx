@@ -134,6 +134,9 @@ export default function WarehousePage() {
       <DataTable
         data={products}
         pageSize={8}
+        searchable
+        searchPlaceholder="Search warehouse products"
+        initialSort={{ key: "name", direction: "asc" }}
         columns={[
           {
             key: "name",
@@ -179,6 +182,8 @@ export default function WarehousePage() {
           {
             key: "quantity",
             label: "Quantity",
+            sortValue: (row) => row.total_quantity,
+            searchValue: (row) => `${row.total_quantity} ${row.unit}`,
             render: (row) =>
               editingId === row.id ? (
                 <input
@@ -219,6 +224,7 @@ export default function WarehousePage() {
           {
             key: "threshold",
             label: "Threshold",
+            sortValue: (row) => row.low_stock_threshold,
             render: (row) =>
               editingId === row.id ? (
                 <input
@@ -240,6 +246,7 @@ export default function WarehousePage() {
           {
             key: "status",
             label: "Status",
+            sortable: false,
             render: (row) => (
               <span className={row.low_stock ? "badge-warning" : "badge-success"}>
                 {row.low_stock ? "Low stock" : "Healthy"}
@@ -249,6 +256,7 @@ export default function WarehousePage() {
           {
             key: "actions",
             label: "Actions",
+            sortable: false,
             render: (row) => (
               <div className="flex flex-wrap gap-2">
                 {editingId === row.id ? (

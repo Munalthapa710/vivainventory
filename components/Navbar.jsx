@@ -4,7 +4,8 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Cog, LogOut, Menu } from "lucide-react";
+import { Cog, LogOut, Menu } from "lucide-react";
+import NotificationCenter from "./NotificationCenter";
 import PwaInstallButton from "./PwaInstallButton";
 
 function titleFromPath(pathname) {
@@ -82,7 +83,7 @@ export default function Navbar({ user, onMenuClick }) {
   }
 
   return (
-    <header className="no-print fixed left-0 right-0 top-0 z-20 border-b border-slate-200 bg-white/95 pt-[var(--safe-area-top)] backdrop-blur lg:left-[var(--sidebar-offset)]">
+    <header className="no-print fixed left-0 right-0 top-0 z-20 border-b border-slate-200/80 bg-white/88 pt-[var(--safe-area-top)] shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur lg:left-[var(--sidebar-offset)]">
       <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <button
@@ -106,12 +107,7 @@ export default function Navbar({ user, onMenuClick }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
-          >
-            <Bell className="h-4 w-4" />
-          </button>
+          <NotificationCenter user={user} />
           <div className="relative" ref={profileRef}>
             <button
               type="button"

@@ -92,6 +92,9 @@ export default function EmployeeProductsPage() {
       <DataTable
         data={products}
         pageSize={8}
+        searchable
+        searchPlaceholder="Search assigned products"
+        initialSort={{ key: "name", direction: "asc" }}
         emptyMessage="No products assigned."
         columns={[
           {
@@ -119,6 +122,7 @@ export default function EmployeeProductsPage() {
           {
             key: "status",
             label: "Status",
+            sortable: false,
             render: (row) => (
               <span className={row.low_stock ? "badge-warning" : "badge-success"}>
                 {row.low_stock ? "Low stock" : "Healthy"}
@@ -128,6 +132,7 @@ export default function EmployeeProductsPage() {
           {
             key: "action",
             label: "Action",
+            sortable: false,
             render: (row) => (
               <button
                 type="button"

@@ -290,6 +290,21 @@ export async function DELETE(request) {
       );
     }
 
+    const records = await queryOne(
+      "SELECT COUNT(*) AS count FROM records WHERE product_id = $1",
+      [id]
+    );
+
+    if (Number(records.count || 0) > 0) {
+      return NextResponse.json(
+        {
+          message:
+            "This product has inventory history. Keep it for audit purposes instead of deleting it."
+        },
+        { status: 400 }
+      );
+    }
+
     await query("DELETE FROM products WHERE id = $1", [id]);
 
     return NextResponse.json({

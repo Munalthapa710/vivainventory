@@ -19,7 +19,7 @@ export async function GET(request) {
 
     const employees = (
       await queryRows(`
-        SELECT id, full_name, email, role, is_active, created_at
+        SELECT id, full_name, email, role, is_active, must_change_password, created_at
         FROM users
         WHERE role = 'employee' AND is_active = TRUE
         ORDER BY LOWER(full_name) ASC
@@ -87,7 +87,7 @@ export async function GET(request) {
 
   const users = (
     await queryRows(`
-      SELECT id, full_name, email, role, is_active, created_at
+      SELECT id, full_name, email, role, is_active, must_change_password, created_at
       FROM users
       ORDER BY created_at DESC
     `)
@@ -117,9 +117,9 @@ export async function POST(request) {
       );
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       return NextResponse.json(
-        { message: "Password must be at least 6 characters long." },
+        { message: "Password must be at least 8 characters long." },
         { status: 400 }
       );
     }
@@ -146,17 +146,19 @@ export async function POST(request) {
           password_hash,
           role,
           is_active,
+          must_change_password,
+          password_updated_at,
           created_at
         )
-        VALUES ($1, $2, $3, $4, TRUE, NOW())
-        RETURNING id, full_name, email, role, is_active, created_at
+        VALUES ($1, $2, $3, $4, TRUE, TRUE, NOW(), NOW())
+        RETURNING id, full_name, email, role, is_active, must_change_password, created_at
       `,
       [fullName, email, passwordHash, role]
     );
 
     return NextResponse.json(
       {
-        message: "User created successfully.",
+        message: "User created successfully. Password change will be required at first sign-in.",
         user: sanitizeUser(createdUser)
       },
       { status: 201 }

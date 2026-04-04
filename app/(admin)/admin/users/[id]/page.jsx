@@ -156,6 +156,9 @@ export default function AdminUserInventoryPage() {
       <DataTable
         data={products}
         pageSize={8}
+        searchable
+        searchPlaceholder="Search assigned products"
+        initialSort={{ key: "name", direction: "asc" }}
         emptyMessage="No products assigned to this employee yet."
         columns={[
           {
@@ -194,6 +197,7 @@ export default function AdminUserInventoryPage() {
           {
             key: "status",
             label: "Status",
+            sortable: false,
             render: (row) => (
               <span className={row.low_stock ? "badge-warning" : "badge-success"}>
                 {row.low_stock ? "Low stock" : "Healthy"}
@@ -203,6 +207,7 @@ export default function AdminUserInventoryPage() {
           {
             key: "actions",
             label: "Actions",
+            sortable: false,
             render: (row) => (
               <div className="flex flex-wrap gap-2">
                 {editingProductId === row.product_id ? (

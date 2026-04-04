@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import {
@@ -23,15 +24,20 @@ const initialSecurity = {
 
 export default function SettingsPanel({ role }) {
   const { update } = useSession();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [profile, setProfile] = useState({
     full_name: "",
     email: "",
-    role: role
+    role: role,
+    must_change_password: false
   });
   const [security, setSecurity] = useState(initialSecurity);
+  const forcePasswordChange =
+    searchParams.get("forcePasswordChange") === "1" ||
+    profile.must_change_password;
 
   useEffect(() => {
     async function loadProfile() {
@@ -40,7 +46,8 @@ export default function SettingsPanel({ role }) {
         setProfile({
           full_name: data.user.full_name,
           email: data.user.email,
-          role: data.user.role
+          role: data.user.role,
+          must_change_password: Boolean(data.user.must_change_password)
         });
       } catch (error) {
         toast.error(error.message || "Unable to load settings.");
@@ -67,6 +74,11 @@ export default function SettingsPanel({ role }) {
       await update({
         name: data.user.full_name
       });
+
+      setProfile((current) => ({
+        ...current,
+        full_name: data.user.full_name
+      }));
 
       toast.success("Profile updated.");
     } catch (error) {
@@ -95,6 +107,14 @@ export default function SettingsPanel({ role }) {
         })
       });
 
+      await update({
+        mustChangePassword: false
+      });
+
+      setProfile((current) => ({
+        ...current,
+        must_change_password: false
+      }));
       setSecurity(initialSecurity);
       toast.success("Password updated.");
     } catch (error) {
@@ -122,11 +142,35 @@ export default function SettingsPanel({ role }) {
             Update your personal details and keep your login secure.
           </p>
         </div>
-        <Link href={`/${role}/dashboard`} className="btn-secondary">
-          <ArrowLeft className="h-4 w-4" />
-          Back to dashboard
-        </Link>
+        {!forcePasswordChange ? (
+          <Link href={`/${role}/dashboard`} className="btn-secondary">
+            <ArrowLeft className="h-4 w-4" />
+            Back to dashboard
+          </Link>
+        ) : null}
       </section>
+
+      {forcePasswordChange ? (
+        <section className="rounded-[1.75rem] border border-amber-200 bg-[linear-gradient(135deg,#fff7ed_0%,#fffaf3_100%)] p-5 shadow-panel">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+                Password Update Required
+              </p>
+              <h2 className="mt-1 text-lg font-bold text-slate-900">
+                This account must set a new password before returning to the app.
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Save a new password below to complete the account setup and
+                restore access to the rest of the workspace.
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <form className="card-panel space-y-6" onSubmit={handleProfileSave}>
@@ -230,7 +274,7 @@ export default function SettingsPanel({ role }) {
                     newPassword: event.target.value
                   }))
                 }
-                minLength={6}
+                minLength={8}
                 required
               />
             </div>
@@ -246,7 +290,7 @@ export default function SettingsPanel({ role }) {
                     confirmPassword: event.target.value
                   }))
                 }
-                minLength={6}
+                minLength={8}
                 required
               />
             </div>
@@ -261,7 +305,7 @@ export default function SettingsPanel({ role }) {
                 ) : (
                   <>
                     <ShieldCheck className="h-4 w-4" />
-                    Update password
+                    {forcePasswordChange ? "Set new password" : "Update password"}
                   </>
                 )}
               </button>
@@ -275,6 +319,7 @@ export default function SettingsPanel({ role }) {
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
               <li>Your email stays unchanged here and remains your login ID.</li>
               <li>Name updates are reflected in the shared navigation shell.</li>
+              <li>Passwords must be at least 8 characters long.</li>
               <li>Password changes take effect immediately after save.</li>
             </ul>
           </div>

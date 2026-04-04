@@ -9,7 +9,16 @@ export const dynamic = "force-dynamic";
 function getCurrentUser(userId) {
   return queryOne(
     `
-      SELECT id, full_name, email, password_hash, role, is_active, created_at
+      SELECT
+        id,
+        full_name,
+        email,
+        password_hash,
+        role,
+        is_active,
+        must_change_password,
+        password_updated_at,
+        created_at
       FROM users
       WHERE id = $1
     `,
@@ -71,9 +80,9 @@ export async function PATCH(request) {
     }
 
     if (newPassword) {
-      if (newPassword.length < 6) {
+      if (newPassword.length < 8) {
         return NextResponse.json(
-          { message: "New password must be at least 6 characters long." },
+          { message: "New password must be at least 8 characters long." },
           { status: 400 }
         );
       }
@@ -99,6 +108,8 @@ export async function PATCH(request) {
 
       values.push(await bcrypt.hash(newPassword, 10));
       updates.push(`password_hash = $${values.length}`);
+      updates.push("must_change_password = FALSE");
+      updates.push("password_updated_at = NOW()");
     }
 
     if (updates.length === 0) {

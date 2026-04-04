@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import {
   query,
   queryOne,
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 async function getUserById(id, client) {
   return queryOne(
     `
-      SELECT id, full_name, email, role, is_active, created_at
+      SELECT id, full_name, email, role, is_active, must_change_password, created_at
       FROM users
       WHERE id = $1
     `,
@@ -75,6 +76,39 @@ export async function PATCH(request, { params }) {
     const body = await request.json();
     const updates = [];
     const values = [];
+
+    if (typeof body.reset_password === "string") {
+      const nextPassword = body.reset_password.trim();
+
+      if (nextPassword.length < 8) {
+        return NextResponse.json(
+          { message: "Temporary password must be at least 8 characters long." },
+          { status: 400 }
+        );
+      }
+
+      const passwordHash = await bcrypt.hash(nextPassword, 10);
+
+      await query(
+        `
+          UPDATE users
+          SET
+            password_hash = $1,
+            must_change_password = TRUE,
+            password_updated_at = NOW(),
+            is_active = TRUE
+          WHERE id = $2
+        `,
+        [passwordHash, userId]
+      );
+
+      const updatedUser = await getUserById(userId);
+
+      return NextResponse.json({
+        message: "Password reset successfully. The user must change it at next sign-in.",
+        user: sanitizeUser(updatedUser)
+      });
+    }
 
     if (typeof body.full_name === "string") {
       const fullName = body.full_name.trim();
@@ -241,6 +275,21 @@ export async function DELETE(_request, { params }) {
           { status: 400 }
         );
       }
+    }
+
+    const records = await queryOne(
+      "SELECT COUNT(*) AS count FROM records WHERE user_id = $1",
+      [userId]
+    );
+
+    if (Number(records.count || 0) > 0) {
+      return NextResponse.json(
+        {
+          message:
+            "This user has inventory history. Deactivate the account instead of deleting it."
+        },
+        { status: 400 }
+      );
     }
 
     await withTransaction(async (client) => {

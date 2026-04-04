@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Loader2, Plus, Trash2, UserPlus } from "lucide-react";
+import { KeyRound, Loader2, Plus, Trash2, UserPlus } from "lucide-react";
 import DataTable from "@/components/DataTable";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import Modal from "@/components/Modal";
@@ -16,13 +16,22 @@ const initialForm = {
   role: "employee"
 };
 
+function createTemporaryPassword() {
+  return `Viva${Math.random().toString(36).slice(2, 6)}${Math.random()
+    .toString(36)
+    .slice(2, 6)}9A`;
+}
+
 export default function AdminUsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetPassword, setResetPassword] = useState(createTemporaryPassword());
   const [form, setForm] = useState(initialForm);
 
   async function loadUsers() {
@@ -100,6 +109,31 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function handleResetPassword() {
+    if (!resetTarget) {
+      return;
+    }
+
+    setResetting(true);
+
+    try {
+      await apiRequest(`/api/users/${resetTarget.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          reset_password: resetPassword
+        })
+      });
+      toast.success("Temporary password issued successfully.");
+      setResetTarget(null);
+      setResetPassword(createTemporaryPassword());
+      await loadUsers();
+    } catch (error) {
+      toast.error(error.message || "Unable to reset password.");
+    } finally {
+      setResetting(false);
+    }
+  }
+
   if (loading) {
     return <LoadingSkeleton cards={2} rows={6} />;
   }
@@ -127,6 +161,9 @@ export default function AdminUsersPage() {
       <DataTable
         data={users}
         pageSize={8}
+        searchable
+        searchPlaceholder="Search by user name, email, or role"
+        initialSort={{ key: "created_at", direction: "desc" }}
         onRowClick={(user) => router.push(`/admin/users/${user.id}`)}
         columns={[
           {
@@ -153,15 +190,22 @@ export default function AdminUsersPage() {
           {
             key: "status",
             label: "Status",
+            sortable: false,
             render: (row) => (
-              <span className={row.is_active ? "badge-success" : "badge-danger"}>
-                {row.is_active ? "Active" : "Inactive"}
-              </span>
+              <div className="flex flex-wrap gap-2">
+                <span className={row.is_active ? "badge-success" : "badge-danger"}>
+                  {row.is_active ? "Active" : "Inactive"}
+                </span>
+                {row.must_change_password ? (
+                  <span className="badge-warning">Password reset required</span>
+                ) : null}
+              </div>
             )
           },
           {
             key: "actions",
             label: "Actions",
+            sortable: false,
             render: (row) => (
               <div className="flex flex-wrap gap-2">
                 <button
@@ -170,6 +214,18 @@ export default function AdminUsersPage() {
                   onClick={(event) => handleToggleActive(row, event)}
                 >
                   {row.is_active ? "Deactivate" : "Activate"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary px-3 py-2"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setResetTarget(row);
+                    setResetPassword(createTemporaryPassword());
+                  }}
+                >
+                  <KeyRound className="h-4 w-4" />
+                  Reset password
                 </button>
                 <button
                   type="button"
@@ -187,6 +243,63 @@ export default function AdminUsersPage() {
           }
         ]}
       />
+
+      <Modal
+        open={Boolean(resetTarget)}
+        title="Reset password"
+        description="Issue a temporary password and force the user to change it on next sign-in."
+        onClose={() => {
+          setResetTarget(null);
+          setResetPassword(createTemporaryPassword());
+        }}
+        size="sm"
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-slate-600">
+            Set a temporary password for{" "}
+            <span className="font-semibold">{resetTarget?.full_name}</span>.
+          </p>
+          <div>
+            <label className="label">Temporary password</label>
+            <input
+              className="input"
+              value={resetPassword}
+              minLength={8}
+              onChange={(event) => setResetPassword(event.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setResetTarget(null);
+                setResetPassword(createTemporaryPassword());
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleResetPassword}
+              disabled={resetting}
+            >
+              {resetting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                <>
+                  <KeyRound className="h-4 w-4" />
+                  Reset password
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={modalOpen}

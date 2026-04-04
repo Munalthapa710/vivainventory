@@ -256,6 +256,9 @@ export default function AdminDashboardPage() {
 
         <DataTable
           pageSize={10}
+          searchable
+          searchPlaceholder="Search recent activity"
+          initialSort={{ key: "created_at", direction: "desc" }}
           columns={[
             {
               key: "user_name",
