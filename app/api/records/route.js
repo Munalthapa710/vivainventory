@@ -89,7 +89,7 @@ async function getAvailableProducts(user) {
 
   const rows = await queryRows(
     `
-      SELECT DISTINCT
+      SELECT
         p.id AS product_id,
         p.name,
         p.sku
