@@ -92,6 +92,8 @@ export default function EmployeeDashboardPage() {
           value={stats.totalProducts}
           helper="Assigned product lines available to you."
           icon={Boxes}
+          href="/employee/products"
+          actionLabel="Open products"
         />
         <StatsCard
           title="Low Stock"
@@ -99,6 +101,8 @@ export default function EmployeeDashboardPage() {
           helper="Products close to depletion based on warehouse thresholds."
           icon={AlertTriangle}
           accent="rose"
+          href="/employee/products"
+          actionLabel="Review stock"
         />
         <StatsCard
           title="Recent Actions"
@@ -106,6 +110,8 @@ export default function EmployeeDashboardPage() {
           helper="Latest usage or assignment records on your account."
           icon={Activity}
           accent="emerald"
+          href="/employee/records"
+          actionLabel="Open records"
         />
       </section>
 

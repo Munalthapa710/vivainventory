@@ -59,6 +59,8 @@ function getConversationPreview(conversation) {
 
 function ConversationButton({ conversation, isSelected, onClick }) {
   const hasRecentMessage = Boolean(conversation.last_message_at);
+  const unreadCount = Number(conversation.unread_count || 0);
+  const hasUnread = unreadCount > 0;
 
   return (
     <button
@@ -89,6 +91,11 @@ function ConversationButton({ conversation, isSelected, onClick }) {
             <p className="truncate font-semibold text-slate-900">
               {conversation.label}
             </p>
+            {hasUnread ? (
+              <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-orange-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            ) : null}
           </div>
           <p className="mt-1 truncate text-xs uppercase tracking-[0.16em] text-slate-400">
             {getConversationPresence(conversation)}
@@ -98,7 +105,12 @@ function ConversationButton({ conversation, isSelected, onClick }) {
           {hasRecentMessage ? formatRelativeTime(conversation.last_message_at) : ""}
         </p>
       </div>
-      <p className="mt-3 truncate text-sm text-slate-500">
+      <p
+        className={[
+          "mt-3 truncate text-sm",
+          hasUnread && !isSelected ? "font-medium text-slate-700" : "text-slate-500"
+        ].join(" ")}
+      >
         {getConversationPreview(conversation)}
       </p>
     </button>
@@ -228,6 +240,16 @@ export default function CommunicationWorkspace({
 
       setSelectedConversationDetails(data.conversation);
       setMessages(data.messages || []);
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.conversation_id === data.conversation.conversation_id
+            ? {
+                ...conversation,
+                unread_count: 0
+              }
+            : conversation
+        )
+      );
     } catch (error) {
       if (!silent) {
         toast.error(error.message || "Unable to load messages.");
@@ -398,6 +420,10 @@ export default function CommunicationWorkspace({
   ).length + (currentUser ? 1 : 0);
   const showSenderName = selectedConversation?.type === "group";
   const remainingCharacters = maxMessageLength - draft.length;
+  const unreadMessages = conversations.reduce(
+    (sum, conversation) => sum + Number(conversation.unread_count || 0),
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -410,7 +436,7 @@ export default function CommunicationWorkspace({
           <p className="mt-2 max-w-3xl text-sm text-slate-500">{description}</p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
               Online now
@@ -423,6 +449,14 @@ export default function CommunicationWorkspace({
             </p>
             <p className="mt-2 text-2xl font-bold text-slate-900">
               {directConversations.length}
+            </p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+              Unread
+            </p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {unreadMessages}
             </p>
           </div>
           <div className="rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">

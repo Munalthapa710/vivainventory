@@ -147,6 +147,8 @@ export default function AdminDashboardPage() {
           value={stats.totalProducts}
           helper="Warehouse product lines currently tracked."
           icon={Boxes}
+          href="/admin/warehouse"
+          actionLabel="Open warehouse"
         />
         <StatsCard
           title="Total Users"
@@ -154,6 +156,8 @@ export default function AdminDashboardPage() {
           helper="Combined admin and employee accounts."
           icon={Users}
           accent="slate"
+          href="/admin/users"
+          actionLabel="Open users"
         />
         <StatsCard
           title="Low Stock Items"
@@ -161,6 +165,8 @@ export default function AdminDashboardPage() {
           helper="Products at or below their configured threshold."
           icon={AlertTriangle}
           accent="rose"
+          href="/admin/warehouse"
+          actionLabel="Review stock"
         />
         <StatsCard
           title="Recent Activity"
@@ -168,6 +174,8 @@ export default function AdminDashboardPage() {
           helper="Latest stock movements recorded across the system."
           icon={Activity}
           accent="emerald"
+          href="/admin/dashboard#recent-activity"
+          actionLabel="Jump to records"
         />
       </section>
 
@@ -376,7 +384,7 @@ export default function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="space-y-4">
+      <section id="recent-activity" className="space-y-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-500">
             Recent Activity

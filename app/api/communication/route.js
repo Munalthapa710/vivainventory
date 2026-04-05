@@ -58,7 +58,7 @@ export async function GET() {
   const currentUserId = Number(session.user.id);
   await touchPresence(currentUserId);
 
-  const [announcements, users, latestGroupMessage] = await Promise.all([
+  const [announcements, users, latestGroupMessage, groupUnread] = await Promise.all([
     queryRows(
       `
         SELECT
@@ -82,10 +82,14 @@ export async function GET() {
           u.email,
           u.role,
           up.last_seen_at,
+          unread.unread_count,
           latest.body AS latest_body,
           latest.created_at AS latest_created_at
         FROM users u
         LEFT JOIN user_presence up ON up.user_id = u.id
+        LEFT JOIN conversation_reads cr
+          ON cr.user_id = $1
+         AND cr.conversation_key = CONCAT('direct:', u.id)
         LEFT JOIN LATERAL (
           SELECT body, created_at
           FROM chat_messages m
@@ -97,6 +101,14 @@ export async function GET() {
           ORDER BY m.created_at DESC
           LIMIT 1
         ) latest ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*) AS unread_count
+          FROM chat_messages m
+          WHERE m.conversation_type = 'direct'
+            AND m.sender_id = u.id
+            AND m.recipient_user_id = $1
+            AND m.created_at > COALESCE(cr.last_read_at, TO_TIMESTAMP(0))
+        ) unread ON TRUE
         WHERE u.is_active = TRUE
           AND u.id != $1
         ORDER BY
@@ -118,6 +130,19 @@ export async function GET() {
         ORDER BY m.created_at DESC
         LIMIT 1
       `
+    ),
+    queryOne(
+      `
+        SELECT COUNT(*) AS unread_count
+        FROM chat_messages m
+        LEFT JOIN conversation_reads cr
+          ON cr.user_id = $1
+         AND cr.conversation_key = $2
+        WHERE m.conversation_type = 'group'
+          AND m.sender_id != $1
+          AND m.created_at > COALESCE(cr.last_read_at, TO_TIMESTAMP(0))
+      `,
+      [currentUserId, GROUP_CONVERSATION_ID]
     )
   ]);
 
@@ -131,7 +156,8 @@ export async function GET() {
     is_online: isUserOnline(user.last_seen_at),
     last_seen_at: serializeTimestamp(user.last_seen_at),
     preview: createPreview(user.latest_body),
-    last_message_at: serializeTimestamp(user.latest_created_at)
+    last_message_at: serializeTimestamp(user.latest_created_at),
+    unread_count: Number(user.unread_count || 0)
   }));
 
   const onlineCount =
@@ -149,7 +175,8 @@ export async function GET() {
             `${latestGroupMessage.sender_name}: ${latestGroupMessage.body}`
           )
         : "Start the conversation.",
-      last_message_at: serializeTimestamp(latestGroupMessage?.created_at)
+      last_message_at: serializeTimestamp(latestGroupMessage?.created_at),
+      unread_count: Number(groupUnread?.unread_count || 0)
     },
     ...directConversations
   ];

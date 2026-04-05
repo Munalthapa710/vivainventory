@@ -24,6 +24,37 @@ async function touchPresence(userId, client) {
   );
 }
 
+async function markConversationRead(
+  userId,
+  conversationKey,
+  conversationType,
+  otherUserId = null,
+  client
+) {
+  await query(
+    `
+      INSERT INTO conversation_reads (
+        user_id,
+        conversation_key,
+        conversation_type,
+        other_user_id,
+        last_read_at
+      )
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (user_id, conversation_key)
+      DO UPDATE SET
+        conversation_type = EXCLUDED.conversation_type,
+        other_user_id = EXCLUDED.other_user_id,
+        last_read_at = GREATEST(
+          conversation_reads.last_read_at,
+          EXCLUDED.last_read_at
+        )
+    `,
+    [userId, conversationKey, conversationType, otherUserId],
+    client
+  );
+}
+
 function serializeMessage(message, currentUserId) {
   return {
     id: Number(message.id),
@@ -76,6 +107,12 @@ export async function GET(request) {
         ) recent
         ORDER BY created_at ASC
       `
+    );
+
+    await markConversationRead(
+      currentUserId,
+      GROUP_CONVERSATION_ID,
+      "group"
     );
 
     return NextResponse.json({
@@ -153,6 +190,13 @@ export async function GET(request) {
       ORDER BY created_at ASC
     `,
     [currentUserId, otherUserId]
+  );
+
+  await markConversationRead(
+    currentUserId,
+    getDirectConversationId(otherUserId),
+    "direct",
+    otherUserId
   );
 
   return NextResponse.json({

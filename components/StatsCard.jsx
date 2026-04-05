@@ -1,11 +1,14 @@
-import { TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, TrendingUp } from "lucide-react";
 
 export default function StatsCard({
   title,
   value,
   helper,
   icon: Icon = TrendingUp,
-  accent = "orange"
+  accent = "orange",
+  href = null,
+  actionLabel = "Open"
 }) {
   const accentStyles = {
     orange: "bg-orange-100 text-orange-600",
@@ -14,8 +17,13 @@ export default function StatsCard({
     rose: "bg-rose-100 text-rose-600"
   };
 
-  return (
-    <article className="card-panel">
+  const card = (
+    <article
+      className={[
+        "card-panel",
+        href ? "transition hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50/60" : ""
+      ].join(" ")}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -25,6 +33,12 @@ export default function StatsCard({
           {helper ? (
             <p className="mt-3 text-sm leading-6 text-slate-500">{helper}</p>
           ) : null}
+          {href ? (
+            <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-orange-600">
+              {actionLabel}
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          ) : null}
         </div>
         <div
           className={`rounded-2xl p-3 ${accentStyles[accent] || accentStyles.orange}`}
@@ -33,5 +47,15 @@ export default function StatsCard({
         </div>
       </div>
     </article>
+  );
+
+  if (!href) {
+    return card;
+  }
+
+  return (
+    <Link href={href} className="block">
+      {card}
+    </Link>
   );
 }
