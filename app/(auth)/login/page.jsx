@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import AppSplashScreen from "@/components/AppSplashScreen";
@@ -10,12 +11,14 @@ import PwaInstallButton from "@/components/PwaInstallButton";
 
 export default function LoginPage() {
   const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({
     email: "",
     password: ""
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const sessionExpired = searchParams.get("reason") === "session-expired";
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role) {
@@ -108,6 +111,12 @@ export default function LoginPage() {
           </div>
 
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+            {sessionExpired ? (
+              <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Your session expired. Sign in again to continue.
+              </div>
+            ) : null}
+
             <div>
               <label className="label">Email</label>
               <input
