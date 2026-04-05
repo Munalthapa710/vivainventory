@@ -1,15 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import toast from "react-hot-toast";
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   Boxes,
   Loader2,
   Megaphone,
+  MessageSquare,
+  PackagePlus,
   Send,
-  Users
+  Users,
+  Warehouse
 } from "lucide-react";
 import {
   Bar,
@@ -42,11 +47,13 @@ export default function AdminDashboardPage() {
     totalProducts: 0,
     totalUsers: 0,
     lowStockCount: 0,
-    recentActivity: 0
+    recentActivity: 0,
+    totalUnits: 0
   });
   const [chartData, setChartData] = useState([]);
   const [records, setRecords] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [lowStockProducts, setLowStockProducts] = useState([]);
   const [announcementForm, setAnnouncementForm] = useState(initialAnnouncement);
 
   async function loadDashboard() {
@@ -65,11 +72,18 @@ export default function AdminDashboardPage() {
         totalProducts: warehouseData.totalProducts,
         totalUsers: usersData.totalUsers,
         lowStockCount: warehouseData.lowStockCount,
-        recentActivity: recordsData.records.length
+        recentActivity: recordsData.records.length,
+        totalUnits: warehouseData.totalUnits
       });
       setChartData(warehouseData.categoryChart);
       setRecords(recordsData.records);
       setAnnouncements(announcementsData.announcements);
+      setLowStockProducts(
+        warehouseData.products
+          .filter((product) => product.low_stock)
+          .sort((left, right) => left.total_quantity - right.total_quantity)
+          .slice(0, 4)
+      );
     } catch (error) {
       toast.error(error.message || "Unable to load dashboard.");
     } finally {
@@ -104,6 +118,27 @@ export default function AdminDashboardPage() {
     return <LoadingSkeleton cards={4} rows={6} />;
   }
 
+  const quickActions = [
+    {
+      href: "/admin/warehouse",
+      title: "Manage warehouse",
+      description: "Add products, adjust quantities, and keep stock data accurate.",
+      icon: Warehouse
+    },
+    {
+      href: "/admin/users",
+      title: "Manage users",
+      description: "Create accounts, assign stock, and review each employee's allocation.",
+      icon: Users
+    },
+    {
+      href: "/admin/communication",
+      title: "Open communication",
+      description: "Chat with the team and publish announcements from one place.",
+      icon: MessageSquare
+    }
+  ];
+
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -134,6 +169,98 @@ export default function AdminDashboardPage() {
           icon={Activity}
           accent="emerald"
         />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="card-panel">
+          <div className="mb-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-500">
+              Admin Actions
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">
+              Operational shortcuts
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">
+              {stats.totalUnits} total warehouse units are currently tracked.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {quickActions.map((action) => (
+              <Link
+                key={action.href}
+                href={action.href}
+                className="rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:border-orange-200 hover:bg-orange-50"
+              >
+                <div className="inline-flex rounded-2xl bg-orange-100 p-3 text-orange-600">
+                  <action.icon className="h-5 w-5" />
+                </div>
+                <h3 className="mt-4 text-lg font-bold text-slate-900">
+                  {action.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  {action.description}
+                </p>
+                <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-orange-600">
+                  Open
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="card-panel">
+          <div className="mb-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-500">
+              Priority Watch
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">
+              Restock needed
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Products already at or below threshold are surfaced here first.
+            </p>
+          </div>
+
+          {lowStockProducts.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+              No warehouse products are currently marked as low stock.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {lowStockProducts.map((product) => (
+                <article
+                  key={product.id}
+                  className="rounded-3xl border border-amber-200 bg-amber-50 p-4"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <PackagePlus className="h-4 w-4 text-amber-600" />
+                        <p className="font-semibold text-slate-900">{product.name}</p>
+                      </div>
+                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
+                        {product.sku} - {product.storage_location}
+                      </p>
+                    </div>
+                    <span className="badge-warning">Low stock</span>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                    <p>
+                      <span className="font-semibold text-slate-900">On hand:</span>{" "}
+                      {product.total_quantity} {product.unit}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Threshold:</span>{" "}
+                      {product.low_stock_threshold} {product.unit}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
