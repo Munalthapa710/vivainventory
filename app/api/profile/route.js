@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
+import { createErrorResponse } from "@/lib/api";
 import { query, queryOne, sanitizeUser } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 
@@ -27,21 +28,25 @@ function getCurrentUser(userId) {
 }
 
 export async function GET() {
-  const { session, response } = await requireSession();
+  try {
+    const { session, response } = await requireSession();
 
-  if (response) {
-    return response;
+    if (response) {
+      return response;
+    }
+
+    const user = await getCurrentUser(Number(session.user.id));
+
+    if (!user) {
+      return NextResponse.json({ message: "User not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      user: sanitizeUser(user)
+    });
+  } catch (error) {
+    return createErrorResponse(error, "Unable to load profile.");
   }
-
-  const user = await getCurrentUser(Number(session.user.id));
-
-  if (!user) {
-    return NextResponse.json({ message: "User not found." }, { status: 404 });
-  }
-
-  return NextResponse.json({
-    user: sanitizeUser(user)
-  });
 }
 
 export async function PATCH(request) {

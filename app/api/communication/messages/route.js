@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createErrorResponse } from "@/lib/api";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import {
@@ -72,20 +73,101 @@ function serializeMessage(message, currentUserId) {
 }
 
 export async function GET(request) {
-  const { session, response } = await requireSession();
+  try {
+    const { session, response } = await requireSession();
 
-  if (response) {
-    return response;
-  }
+    if (response) {
+      return response;
+    }
 
-  const currentUserId = Number(session.user.id);
-  await touchPresence(currentUserId);
+    const currentUserId = Number(session.user.id);
+    await touchPresence(currentUserId);
 
-  const { searchParams } = new URL(request.url);
-  const conversationType =
-    searchParams.get("conversationType") === "direct" ? "direct" : "group";
+    const { searchParams } = new URL(request.url);
+    const conversationType =
+      searchParams.get("conversationType") === "direct" ? "direct" : "group";
 
-  if (conversationType === "group") {
+    if (conversationType === "group") {
+      const messages = await queryRows(
+        `
+          SELECT *
+          FROM (
+            SELECT
+              m.id,
+              m.sender_id,
+              m.recipient_user_id,
+              m.conversation_type,
+              m.body,
+              m.created_at,
+              u.full_name AS sender_name,
+              u.role AS sender_role
+            FROM chat_messages m
+            INNER JOIN users u ON u.id = m.sender_id
+            WHERE m.conversation_type = 'group'
+            ORDER BY m.created_at DESC
+            LIMIT 120
+          ) recent
+          ORDER BY created_at ASC
+        `
+      );
+
+      await markConversationRead(
+        currentUserId,
+        GROUP_CONVERSATION_ID,
+        "group"
+      );
+
+      return NextResponse.json({
+        conversation: {
+          conversation_id: GROUP_CONVERSATION_ID,
+          type: "group",
+          label: "Team Chat"
+        },
+        messages: messages.map((message) =>
+          serializeMessage(message, currentUserId)
+        )
+      });
+    }
+
+    const otherUserId = Number(searchParams.get("userId"));
+
+    if (!Number.isInteger(otherUserId) || otherUserId <= 0) {
+      return NextResponse.json(
+        { message: "Choose a valid conversation." },
+        { status: 400 }
+      );
+    }
+
+    if (otherUserId === currentUserId) {
+      return NextResponse.json(
+        { message: "Direct conversation cannot target yourself." },
+        { status: 400 }
+      );
+    }
+
+    const otherUser = await queryOne(
+      `
+        SELECT
+          u.id,
+          u.full_name,
+          u.email,
+          u.role,
+          up.last_seen_at
+        FROM users u
+        LEFT JOIN user_presence up ON up.user_id = u.id
+        WHERE u.id = $1
+          AND u.is_active = TRUE
+      `,
+      [otherUserId]
+    );
+
+    if (!otherUser) {
+      return NextResponse.json(
+        { message: "Conversation user not found." },
+        { status: 404 }
+      );
+    }
+
     const messages = await queryRows(
       `
         SELECT *
@@ -101,115 +183,42 @@ export async function GET(request) {
             u.role AS sender_role
           FROM chat_messages m
           INNER JOIN users u ON u.id = m.sender_id
-          WHERE m.conversation_type = 'group'
+          WHERE m.conversation_type = 'direct'
+            AND (
+              (m.sender_id = $1 AND m.recipient_user_id = $2) OR
+              (m.sender_id = $2 AND m.recipient_user_id = $1)
+            )
           ORDER BY m.created_at DESC
           LIMIT 120
         ) recent
         ORDER BY created_at ASC
-      `
+      `,
+      [currentUserId, otherUserId]
     );
 
     await markConversationRead(
       currentUserId,
-      GROUP_CONVERSATION_ID,
-      "group"
+      getDirectConversationId(otherUserId),
+      "direct",
+      otherUserId
     );
 
     return NextResponse.json({
       conversation: {
-        conversation_id: GROUP_CONVERSATION_ID,
-        type: "group",
-        label: "Team Chat"
+        conversation_id: getDirectConversationId(otherUserId),
+        type: "direct",
+        user_id: Number(otherUser.id),
+        label: otherUser.full_name,
+        email: otherUser.email,
+        role: otherUser.role,
+        is_online: isUserOnline(otherUser.last_seen_at),
+        last_seen_at: serializeTimestamp(otherUser.last_seen_at)
       },
-      messages: messages.map((message) => serializeMessage(message, currentUserId))
+      messages: messages.map((message) =>
+        serializeMessage(message, currentUserId)
+      )
     });
+  } catch (error) {
+    return createErrorResponse(error, "Unable to load messages.");
   }
-
-  const otherUserId = Number(searchParams.get("userId"));
-
-  if (!Number.isInteger(otherUserId) || otherUserId <= 0) {
-    return NextResponse.json(
-      { message: "Choose a valid conversation." },
-      { status: 400 }
-    );
-  }
-
-  if (otherUserId === currentUserId) {
-    return NextResponse.json(
-      { message: "Direct conversation cannot target yourself." },
-      { status: 400 }
-    );
-  }
-
-  const otherUser = await queryOne(
-    `
-      SELECT
-        u.id,
-        u.full_name,
-        u.email,
-        u.role,
-        up.last_seen_at
-      FROM users u
-      LEFT JOIN user_presence up ON up.user_id = u.id
-      WHERE u.id = $1
-        AND u.is_active = TRUE
-    `,
-    [otherUserId]
-  );
-
-  if (!otherUser) {
-    return NextResponse.json(
-      { message: "Conversation user not found." },
-      { status: 404 }
-    );
-  }
-
-  const messages = await queryRows(
-    `
-      SELECT *
-      FROM (
-        SELECT
-          m.id,
-          m.sender_id,
-          m.recipient_user_id,
-          m.conversation_type,
-          m.body,
-          m.created_at,
-          u.full_name AS sender_name,
-          u.role AS sender_role
-        FROM chat_messages m
-        INNER JOIN users u ON u.id = m.sender_id
-        WHERE m.conversation_type = 'direct'
-          AND (
-            (m.sender_id = $1 AND m.recipient_user_id = $2) OR
-            (m.sender_id = $2 AND m.recipient_user_id = $1)
-          )
-        ORDER BY m.created_at DESC
-        LIMIT 120
-      ) recent
-      ORDER BY created_at ASC
-    `,
-    [currentUserId, otherUserId]
-  );
-
-  await markConversationRead(
-    currentUserId,
-    getDirectConversationId(otherUserId),
-    "direct",
-    otherUserId
-  );
-
-  return NextResponse.json({
-    conversation: {
-      conversation_id: getDirectConversationId(otherUserId),
-      type: "direct",
-      user_id: Number(otherUser.id),
-      label: otherUser.full_name,
-      email: otherUser.email,
-      role: otherUser.role,
-      is_online: isUserOnline(otherUser.last_seen_at),
-      last_seen_at: serializeTimestamp(otherUser.last_seen_at)
-    },
-    messages: messages.map((message) => serializeMessage(message, currentUserId))
-  });
 }

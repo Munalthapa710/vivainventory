@@ -6,6 +6,7 @@ import {
   serializeRecord,
   withTransaction
 } from "@/lib/db";
+import { createErrorResponse } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import {
   getDefaultMovementReason,
@@ -117,33 +118,37 @@ async function getAvailableProducts(user) {
 }
 
 export async function GET(request) {
-  const { session, response } = await requireSession();
+  try {
+    const { session, response } = await requireSession();
 
-  if (response) {
-    return response;
+    if (response) {
+      return response;
+    }
+
+    const { searchParams } = new URL(request.url);
+    const limitValue = Number(searchParams.get("limit"));
+    const limit = Number.isInteger(limitValue) ? limitValue : null;
+    const productIdValue = Number(searchParams.get("productId"));
+    const productId =
+      Number.isInteger(productIdValue) && productIdValue > 0 ? productIdValue : null;
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+
+    const { query, parameters } = buildRecordsQuery({
+      userId: session.user.role === "employee" ? Number(session.user.id) : null,
+      limit,
+      productId,
+      startDate,
+      endDate
+    });
+
+    const records = (await queryRows(query, parameters)).map(serializeRecord);
+    const availableProducts = await getAvailableProducts(session.user);
+
+    return NextResponse.json({ records, availableProducts });
+  } catch (error) {
+    return createErrorResponse(error, "Unable to load records.");
   }
-
-  const { searchParams } = new URL(request.url);
-  const limitValue = Number(searchParams.get("limit"));
-  const limit = Number.isInteger(limitValue) ? limitValue : null;
-  const productIdValue = Number(searchParams.get("productId"));
-  const productId =
-    Number.isInteger(productIdValue) && productIdValue > 0 ? productIdValue : null;
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-
-  const { query, parameters } = buildRecordsQuery({
-    userId: session.user.role === "employee" ? Number(session.user.id) : null,
-    limit,
-    productId,
-    startDate,
-    endDate
-  });
-
-  const records = (await queryRows(query, parameters)).map(serializeRecord);
-  const availableProducts = await getAvailableProducts(session.user);
-
-  return NextResponse.json({ records, availableProducts });
 }
 
 export async function POST(request) {

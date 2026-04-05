@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createErrorResponse } from "@/lib/api";
 import { queryOne, queryRows, serializeAnnouncement } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 
@@ -6,34 +7,38 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request) {
-  const { response } = await requireSession();
+  try {
+    const { response } = await requireSession();
 
-  if (response) {
-    return response;
+    if (response) {
+      return response;
+    }
+
+    const { searchParams } = new URL(request.url);
+    const limitValue = Number(searchParams.get("limit"));
+    const hasLimit = Number.isInteger(limitValue) && limitValue > 0;
+    const queryText = `
+      SELECT
+        a.id,
+        a.title,
+        a.message,
+        a.created_by,
+        a.created_at,
+        u.full_name AS created_by_name
+      FROM announcements a
+      LEFT JOIN users u ON u.id = a.created_by
+      ORDER BY a.created_at DESC
+      ${hasLimit ? "LIMIT $1" : ""}
+    `;
+
+    const announcements = (
+      await queryRows(queryText, hasLimit ? [limitValue] : [])
+    ).map(serializeAnnouncement);
+
+    return NextResponse.json({ announcements });
+  } catch (error) {
+    return createErrorResponse(error, "Unable to load announcements.");
   }
-
-  const { searchParams } = new URL(request.url);
-  const limitValue = Number(searchParams.get("limit"));
-  const hasLimit = Number.isInteger(limitValue) && limitValue > 0;
-  const queryText = `
-    SELECT
-      a.id,
-      a.title,
-      a.message,
-      a.created_by,
-      a.created_at,
-      u.full_name AS created_by_name
-    FROM announcements a
-    LEFT JOIN users u ON u.id = a.created_by
-    ORDER BY a.created_at DESC
-    ${hasLimit ? "LIMIT $1" : ""}
-  `;
-
-  const announcements = (
-    await queryRows(queryText, hasLimit ? [limitValue] : [])
-  ).map(serializeAnnouncement);
-
-  return NextResponse.json({ announcements });
 }
 
 export async function POST(request) {
